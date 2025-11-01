@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WanderEase API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .config-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .config-panel h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .endpoints-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .endpoint-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .endpoint-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .endpoint-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .endpoint-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .tourism-icon {
+            background: #4CAF50;
+        }
+
+        .restaurant-icon {
+            background: #FF9800;
+        }
+
+        .hotel-icon {
+            background: #2196F3;
+        }
+
+        .map-icon {
+            background: #E91E63;
+        }
+
+        .health-icon {
+            background: #9C27B0;
+        }
+
+        .endpoint-card .endpoint-url {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            word-break: break-all;
+            color: #555;
+        }
+
+        .endpoint-card .param-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+        }
+
+        .endpoint-card button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .endpoint-card button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .endpoint-card button:active {
+            transform: scale(0.98);
+        }
+
+        .endpoint-card button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .status.loading {
+            background: #FFF3CD;
+            color: #856404;
+        }
+
+        .status.success {
+            background: #D4EDDA;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #F8D7DA;
+            color: #721C24;
+        }
+
+        .results-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            margin-top: 30px;
+        }
+
+        .results-panel h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .results-content {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .results-content pre {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-card img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .result-card h4 {
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .result-card p {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .result-card .rating {
+            color: #FFB300;
+            font-weight: 600;
+        }
+
+        .map-image {
+            width: 100%;
+            max-width: 800px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-item .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-item .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .endpoints-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .stats-bar {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+
+        .clear-btn {
+            background: #dc3545 !important;
+            margin-top: 10px;
+        }
+
+        .clear-btn:hover {
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4) !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ WanderEase API Tester</h1>
+            <p>Test all backend endpoints in one place</p>
+        </div>
+
+        <div class="config-panel">
+            <h2>⚙️ Configuration</h2>
+            <div class="input-group">
+                <label for="apiUrl">Backend API URL:</label>
+                <input type="text" id="apiUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+            </div>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-number" id="totalRequests">0</div>
+                <div class="stat-label">Total Requests</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="successCount">0</div>
+                <div class="stat-label">Successful</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="errorCount">0</div>
+                <div class="stat-label">Errors</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="avgTime">0ms</div>
+                <div class="stat-label">Avg Response Time</div>
+            </div>
+        </div>
+
+        <div class="endpoints-grid">
+            <!-- Health Check -->
+            <div class="endpoint-card">
+                <h3>
+                    <span class="endpoint-icon health-icon">❤️</span>
+                    Health Check
+                </h3>
+                <div class="endpoint-url">GET /health</div>
+                <button onclick="testHealth()">Test Health</button>
+                <div class="status" id="health-status"></div>
+            </div>
+
+            <!-- Root Endpoint -->
+            <div class="endpoint-card">
+                <h3>
+                    <span class="endpoint-icon health-icon">🏠</span>
+                    API Root
+                </h3>
+                <div class="endpoint-url">GET /</div>
+                <button onclick="testRoot()">Test Root</button>
+                <div class="status" id="root-status"></div>
+            </div>
+
+            <!-- Tourism Places -->
+            <div class="endpoint-card">
+                <h3>
+                    <span class="endpoint-icon tourism-icon">🏛️</span>
+                    Tourism Places
+                </h3>
+                <div class="endpoint-url">GET /api/tourism</div>
+                <input type="text" class="param-input" id="tourism-location"
+                    placeholder="Location (e.g., Paris, London, Tokyo)">
+                <input type="number" class="param-input" id="tourism-limit" placeholder="Limit (default: 20)"
+                    value="10">
+                <button onclick="testTourism()">Search Tourism Places</button>
+                <div class="status" id="tourism-status"></div>
+            </div>
+
+            <!-- Restaurants -->
+            <div class="endpoint-card">
+                <h3>
+                    <span class="endpoint-icon restaurant-icon">🍽️</span>
+                    Restaurants
+                </h3>
+                <div class="endpoint-url">GET /api/restaurants</div>
+                <input type="text" class="param-input" id="restaurant-location"
+                    placeholder="Location (e.g., New York, Rome)">
+                <input type="number" class="param-input" id="restaurant-limit" placeholder="Limit (default: 20)"
+                    value="10">
+                <button onclick="testRestaurants()">Search Restaurants</button>
+                <div class="status" id="restaurant-status"></div>
+            </div>
+
+            <!-- Hotels -->
+            <div class="endpoint-card">
+                <h3>
+                    <span class="endpoint-icon hotel-icon">🏨</span>
+                    Hotels
+                </h3>
+                <div class="endpoint-url">GET /api/hotels</div>
+                <input type="text" class="param-input" id="hotel-location"
+                    placeholder="Location (e.g., Dubai, Singapore)">
+                <input type="number" class="param-input" id="hotel-limit" placeholder="Limit (default: 20)" value="10">
+                <button onclick="testHotels()">Search Hotels</button>
+                <div class="status" id="hotel-status"></div>
+            </div>
+
+            <!-- Map Generation Card -->
+            <div class="endpoint-card">
+                <h3>
+                    <span class="endpoint-icon map-icon">🗺️</span>
+                    Map Generation
+                </h3>
+                <div class="endpoint-url">GET /api/map</div>
+                <input type="text" class="param-input" id="map-location"
+                    placeholder="Location (e.g., Indore, Mumbai, Paris)">
+                <input type="text" class="param-input" id="map-markers"
+                    placeholder="Markers (lat,lon,lat,lon) - optional">
+                <select class="param-input" id="map-nearby">
+                    <option value="">No nearby places</option>
+                    <option value="tourism">Show Tourist Attractions</option>
+                    <option value="restaurant">Show Restaurants</option>
+                    <option value="hotel">Show Hotels</option>
+                    <option value="cafe">Show Cafes</option>
+                </select>
+                <button onclick="testMap()">Generate Map</button>
+                <div class="status" id="map-status"></div>
+            </div>
+        </div>
+
+        <div class="results-panel">
+            <h2>📊 API Response</h2>
+            <button class="clear-btn"
+                style="background: #dc3545; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;"
+                onclick="clearResults()">Clear Results</button>
+            <div class="results-content" id="results">
+                <p style="color: #999; text-align: center; padding: 40px;">No requests made yet. Try testing an endpoint
+                    above!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentMapHtml;
+        let stats = {
+            totalRequests: 0,
+            successCount: 0,
+            errorCount: 0,
+            responseTimes: []
+        };
+
+        function updateStats() {
+            document.getElementById('totalRequests').textContent = stats.totalRequests;
+            document.getElementById('successCount').textContent = stats.successCount;
+            document.getElementById('errorCount').textContent = stats.errorCount;
+
+            if (stats.responseTimes.length > 0) {
+                const avg = stats.responseTimes.reduce((a, b) => a + b, 0) / stats.responseTimes.length;
+                document.getElementById('avgTime').textContent = Math.round(avg) + 'ms';
+            }
+        }
+
+        function getApiUrl() {
+            return document.getElementById('apiUrl').value.trim();
+        }
+
+        function setStatus(id, type, message) {
+            const statusEl = document.getElementById(id + '-status');
+            statusEl.className = 'status ' + type;
+            statusEl.textContent = message;
+        }
+
+        function displayResults(data, type = 'json') {
+            const resultsEl = document.getElementById('results');
+
+            // ALTERNATIVE APPROACH: Skip iframe, auto-open in new tab
+            // Replace the map section of displayResults with this
+
+            if (type === 'map' && data.map_html) {
+                currentMapHtml = data.map_html;
+                console.log('Map HTML received');
+
+                resultsEl.innerHTML = `
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; color: white; text-align: center; margin-bottom: 20px;">
+                        <div style="font-size: 64px; margin-bottom: 15px;">🗺️</div>
+                        <h3 style="margin: 0 0 15px 0; font-size: 1.8rem;">Map Generated Successfully!</h3>
+                        <p style="margin: 10px 0; font-size: 1.1rem;"><strong>Location:</strong> ${data.location}</p>
+                        <p style="margin: 5px 0;"><strong>Center:</strong> Lat: ${data.center.lat.toFixed(4)}, Lon: ${data.center.lon.toFixed(4)}</p>
+                        ${data.center.display_name ? `<p style="margin: 5px 0; opacity: 0.9;">${data.center.display_name}</p>` : ''}
+                        <p style="margin: 10px 0;"><strong>Markers:</strong> ${(data.markers ? data.markers.length : 0) + 1}</p>
+                    </div>
+                    
+                    <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                        <h3 style="color: #667eea; margin-bottom: 20px; text-align: center;">📍 View Your Map</h3>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                            <button onclick="openMapInNewTab()" style="background: linear-gradient(135deg, #E91E63 0%, #C2185B 100%); color: white; border: none; padding: 20px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 1.1rem; box-shadow: 0 4px 10px rgba(233, 30, 99, 0.3); transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                <span style="font-size: 24px;">🗺️</span>
+                                <span>Open in New Tab</span>
+                            </button>
+                            
+                            <button onclick="downloadMap()" style="background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%); color: white; border: none; padding: 20px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 1.1rem; box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3); transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                                <span style="font-size: 24px;">💾</span>
+                                <span>Download HTML</span>
+                            </button>
+                        </div>
+                        
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea;">
+                            <p style="margin: 0; color: #666; line-height: 1.6;">
+                                <strong style="color: #667eea;">💡 Tip:</strong> The map will open in a new browser tab with full interactive features including zoom, pan, and clickable markers with detailed information.
+                            </p>
+                        </div>
+                        
+                        <button onclick="showMapPreview()" style="width: 100%; background: #2196F3; color: white; border: none; padding: 15px; border-radius: 8px; cursor: pointer; font-weight: 600; margin-top: 15px; font-size: 1rem;">
+                            📱 Show Quick Preview
+                        </button>
+                    </div>
+                    
+                    <details style="margin-top: 20px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #667eea; padding: 15px; background: #f5f5f5; border-radius: 8px; user-select: none; font-size: 1.1rem;">
+                            📄 Show Full JSON Response
+                        </summary>
+                        <pre style="margin-top: 15px; background: #f8f9fa; padding: 20px; border-radius: 8px; overflow-x: auto; max-height: 400px; font-size: 0.9rem;">${JSON.stringify(data, null, 2)}</pre>
+                    </details>
+                `;
+
+                // Auto-open in new tab after short delay (optional)
+                // Uncomment next line if you want automatic opening
+                // setTimeout(() => openMapInNewTab(), 500);
+            }
+            // Handle places/results display
+            else if (type === 'places' && data.data && data.data.length > 0) {
+                let html = `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px;">
+                <h3 style="margin: 0;">Found ${data.count} results in ${data.location}</h3>
+            </div>
+        `;
+                html += '<div class="results-grid">';
+
+                data.data.forEach(item => {
+                    const name = item.name || 'Unnamed';
+                    const rating = item.rating || 'N/A';
+                    const address = item.address || 'Address not available';
+                    const image = item.image_url || 'https://via.placeholder.com/300x200?text=No+Image';
+                    const type = item.type || item.cuisine || item.stars || '';
+
+                    html += `
+                <div class="result-card">
+                    <img src="${image}" alt="${name}" onerror="this.src='https://via.placeholder.com/300x200?text=Image+Not+Found'">
+                    <h4>${name}</h4>
+                    <p><strong>Type:</strong> ${type}</p>
+                    <p><strong>Rating:</strong> <span class="rating">⭐ ${rating}</span></p>
+                    <p><strong>Address:</strong> ${address}</p>
+                    ${item.price_per_night ? `<p><strong>Price:</strong> ₹${item.price_per_night}/night</p>` : ''}
+                    ${item.cuisine ? `<p><strong>Cuisine:</strong> ${item.cuisine}</p>` : ''}
+                </div>
+            `;
+                });
+
+                html += '</div>';
+                html += `
+            <details style="margin-top: 30px;">
+                <summary style="cursor: pointer; font-weight: 600; color: #667eea; padding: 10px; background: #f5f5f5; border-radius: 5px; user-select: none;">
+                    📄 Show Full JSON Response
+                </summary>
+                <pre style="margin-top: 10px; background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto; max-height: 400px;">${JSON.stringify(data, null, 2)}</pre>
+            </details>
+        `;
+                resultsEl.innerHTML = html;
+            }
+            // Handle generic JSON display
+            else {
+                resultsEl.innerHTML = `<pre style="background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>`;
+            }
+        }
+
+        async function makeRequest(endpoint, params = {}, statusId, displayType = 'json') {
+            const startTime = Date.now();
+            stats.totalRequests++;
+
+            setStatus(statusId, 'loading', '⏳ Loading...');
+
+            try {
+                const url = new URL(getApiUrl() + endpoint);
+                Object.keys(params).forEach(key => {
+                    if (params[key]) {
+                        url.searchParams.append(key, params[key]);
+                    }
+                });
+
+                const response = await fetch(url);
+                const data = await response.json();
+                const responseTime = Date.now() - startTime;
+
+                stats.responseTimes.push(responseTime);
+
+                if (response.ok) {
+                    stats.successCount++;
+                    setStatus(statusId, 'success', `✅ Success (${responseTime}ms)`);
+                    displayResults(data, displayType);
+                } else {
+                    stats.errorCount++;
+                    setStatus(statusId, 'error', `❌ Error: ${data.detail || 'Unknown error'}`);
+                    displayResults(data);
+                }
+
+                updateStats();
+            } catch (error) {
+                stats.errorCount++;
+                const responseTime = Date.now() - startTime;
+                setStatus(statusId, 'error', `❌ Error: ${error.message}`);
+                displayResults({ error: error.message, details: 'Make sure the backend is running on the specified URL' });
+                updateStats();
+            }
+        }
+
+        async function testHealth() {
+            await makeRequest('/health', {}, 'health');
+        }
+
+        async function testRoot() {
+            await makeRequest('/', {}, 'root');
+        }
+
+        async function testTourism() {
+            const location = document.getElementById('tourism-location').value;
+            const limit = document.getElementById('tourism-limit').value;
+
+            if (!location) {
+                alert('Please enter a location');
+                return;
+            }
+
+            await makeRequest('/api/tourism', { location, limit }, 'tourism', 'places');
+        }
+
+        async function testRestaurants() {
+            const location = document.getElementById('restaurant-location').value;
+            const limit = document.getElementById('restaurant-limit').value;
+
+            if (!location) {
+                alert('Please enter a location');
+                return;
+            }
+
+            await makeRequest('/api/restaurants', { location, limit }, 'restaurant', 'places');
+        }
+
+        async function testHotels() {
+            const location = document.getElementById('hotel-location').value;
+            const limit = document.getElementById('hotel-limit').value;
+
+            if (!location) {
+                alert('Please enter a location');
+                return;
+            }
+
+            await makeRequest('/api/hotels', { location, limit }, 'hotel', 'places');
+        }
+
+        async function testMap() {
+            const location = document.getElementById('map-location').value;
+            const markers = document.getElementById('map-markers').value;
+
+            if (!location) {
+                alert('Please enter a location');
+                return;
+            }
+
+            await makeRequest('/api/map', { location, markers }, 'map', 'map');
+        }
+
+        function openMapInNewTab() {
+            if (currentMapHtml) {
+                const newWindow = window.open('', '_blank');
+                newWindow.document.write(currentMapHtml);
+                newWindow.document.close();
+            } else {
+                alert('No map data available. Please generate a map first.');
+            }
+        }
+
+        function downloadMap() {
+            if (currentMapHtml) {
+                const blob = new Blob([currentMapHtml], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'map.html';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                alert('No map data available. Please generate a map first.');
+            }
+        }
+
+        // Add this new function for showing a quick preview
+        function showMapPreview() {
+            if (!currentMapHtml) {
+                alert('No map available');
+                return;
+            }
+
+            const previewDiv = document.createElement('div');
+            previewDiv.id = 'map-preview';
+            previewDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 20px;';
+
+            previewDiv.innerHTML = `
+                <div style="width: 95%; height: 95%; background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column;">
+                    <div style="padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 1.5rem;">🗺️ Map Preview</h3>
+                        <button onclick="document.getElementById('map-preview').remove()" style="background: white; color: #667eea; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">
+                            ✕ Close
+                        </button>
+                    </div>
+                    <div style="flex: 1; overflow: hidden;">
+                        <iframe id="preview-frame" style="width: 100%; height: 100%; border: none;"></iframe>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(previewDiv);
+
+            // Load map in preview
+            setTimeout(() => {
+                const iframe = document.getElementById('preview-frame');
+                if (iframe) {
+                    const doc = iframe.contentDocument || iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(currentMapHtml);
+                    doc.close();
+                }
+            }, 100);
+
+            // Close on background click
+            previewDiv.addEventListener('click', function (e) {
+                if (e.target === previewDiv) {
+                    previewDiv.remove();
+                }
+            });
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">Results cleared. Test another endpoint!</p>';
+        }
+
+        // Auto-fill some example data on load
+        window.onload = function () {
+            document.getElementById('tourism-location').value = 'Paris';
+            document.getElementById('restaurant-location').value = 'Tokyo';
+            document.getElementById('hotel-location').value = 'London';
+            document.getElementById('map-location').value = 'New York';
+        };
+    </script>
+</body>
+
+</html>
