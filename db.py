@@ -11,7 +11,7 @@ from datetime import datetime
 from bson import ObjectId
 
 # MongoDB connection
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = "wander_ease"
 
 client = None
