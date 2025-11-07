@@ -1,15 +1,20 @@
 """
-Maps module - Self-contained version
-Generates interactive map HTML using Leaflet.js (OpenStreetMap)
-No external dependencies on utils module
+Enhanced Maps Module - With Geoapify API Integration
+Generates interactive map HTML using Leaflet.js with Geoapify tiles
+Includes Geoapify Places API for nearby places
 """
 
 from typing import Dict, List, Optional
 import aiohttp
+import json
+
+# Geoapify API Key
+GEOAPIFY_API_KEY = "872520433e264a4ea93c5e7f5db329a5"
+
 
 async def get_location_coordinates(location: str) -> Optional[Dict]:
     """
-    Get coordinates using OpenStreetMap Nominatim API
+    Get coordinates using Geoapify Geocoding API
     
     Args:
         location: Location name or address
@@ -18,56 +23,140 @@ async def get_location_coordinates(location: str) -> Optional[Dict]:
         Dict with lat, lon, display_name, or None if not found
     """
     try:
-        # OpenStreetMap Nominatim API for geocoding
-        url = "https://nominatim.openstreetmap.org/search"
+        # Geoapify Geocoding API
+        url = "https://api.geoapify.com/v1/geocode/search"
         params = {
-            'q': location,
+            'text': location,
             'format': 'json',
             'limit': 1,
-            'addressdetails': 1
-        }
-        headers = {
-            'User-Agent': 'WanderEase/1.0 (Travel Application)'
+            'apiKey': GEOAPIFY_API_KEY
         }
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, headers=headers, timeout=10) as response:
+            async with session.get(url, params=params, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    if data and len(data) > 0:
-                        result = data[0]
+                    results = data.get('results', [])
+                    
+                    if results and len(results) > 0:
+                        result = results[0]
                         return {
-                            'lat': float(result['lat']),
-                            'lon': float(result['lon']),
-                            'display_name': result.get('display_name', location),
-                            'address': result.get('address', {}),
-                            'boundingbox': result.get('boundingbox', [])
+                            'lat': result['lat'],
+                            'lon': result['lon'],
+                            'display_name': result.get('formatted', location),
+                            'address': result,
+                            'boundingbox': [
+                                result.get('bbox', {}).get('lat1'),
+                                result.get('bbox', {}).get('lat2'),
+                                result.get('bbox', {}).get('lon1'),
+                                result.get('bbox', {}).get('lon2')
+                            ]
                         }
         return None
     except Exception as e:
-        print(f"Error getting coordinates from Nominatim: {str(e)}")
+        print(f"Error getting coordinates from Geoapify: {str(e)}")
         return None
 
-async def generate_map_image(location: str, markers: Optional[str] = None, 
-                            show_nearby: Optional[str] = None) -> Dict:
+
+async def get_nearby_places(lat: float, lon: float, place_type: str, 
+                           radius: int = 1000, limit: int = 20) -> List[Dict]:
     """
-    Generate an interactive map HTML with markers using OpenStreetMap
+    Fetch nearby places using Geoapify Places API
+    
+    Args:
+        lat: Latitude of center point
+        lon: Longitude of center point
+        place_type: Type of place (tourism, restaurant, hotel, cafe)
+        radius: Search radius in meters (default 1000m = 1km)
+        limit: Maximum number of results
+    
+    Returns:
+        List of place dictionaries with name, lat, lon, type
+    """
+    try:
+        # Map place types to Geoapify categories
+        type_mapping = {
+            'tourism': 'tourism.attraction,tourism.sights',
+            'restaurant': 'catering.restaurant',
+            'hotel': 'accommodation.hotel',
+            'cafe': 'catering.cafe'
+        }
+        
+        if place_type not in type_mapping:
+            print(f"Unknown place type: {place_type}")
+            return []
+        
+        categories = type_mapping[place_type]
+        
+        # Geoapify Places API
+        url = "https://api.geoapify.com/v2/places"
+        params = {
+            'categories': categories,
+            'filter': f'circle:{lon},{lat},{radius}',
+            'limit': limit,
+            'apiKey': GEOAPIFY_API_KEY
+        }
+        
+        print(f"Fetching nearby {place_type} within {radius}m using Geoapify...")
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, timeout=30) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    places = []
+                    
+                    for feature in data.get('features', []):
+                        properties = feature.get('properties', {})
+                        coordinates = feature.get('geometry', {}).get('coordinates', [])
+                        
+                        if len(coordinates) >= 2:
+                            place_lon, place_lat = coordinates[0], coordinates[1]
+                            
+                            name = properties.get('name') or properties.get('address_line1', f'Unnamed {place_type}')
+                            
+                            places.append({
+                                'name': name,
+                                'lat': place_lat,
+                                'lon': place_lon,
+                                'type': place_type,
+                                'tags': properties
+                            })
+                    
+                    print(f"Found {len(places)} nearby {place_type}")
+                    return places[:limit]
+        
+        return []
+    except Exception as e:
+        print(f"Error fetching nearby places from Geoapify: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+
+async def generate_map_image(location: str, markers: Optional[str] = None, 
+                            show_nearby: Optional[str] = None,
+                            nearby_radius: int = 1000,
+                            nearby_limit: int = 20) -> Dict:
+    """
+    Generate an interactive map HTML with markers using Geoapify
     
     Args:
         location: Location name or address
         markers: Comma-separated lat,lon pairs (e.g., "28.6139,77.2090,28.7041,77.1025")
-        show_nearby: Type of nearby places to show (tourism, restaurant, hotel) - NOT IMPLEMENTED YET
+        show_nearby: Type of nearby places to show (tourism, restaurant, hotel, cafe)
+        nearby_radius: Search radius for nearby places in meters (default 1000)
+        nearby_limit: Max number of nearby places to show (default 20)
     
     Returns:
         Dict with HTML map and center coordinates
     """
     try:
-        # Get center coordinates using OpenStreetMap Nominatim
+        # Get center coordinates using Geoapify Geocoding
         print(f"Fetching coordinates for location: {location}")
         loc = await get_location_coordinates(location)
         
         if not loc:
-            raise Exception(f"Location '{location}' not found in OpenStreetMap Nominatim")
+            raise Exception(f"Location '{location}' not found in Geoapify")
         
         center_lat = loc['lat']
         center_lon = loc['lon']
@@ -76,7 +165,7 @@ async def generate_map_image(location: str, markers: Optional[str] = None,
         print(f"Found coordinates: {center_lat}, {center_lon}")
         print(f"Display name: {display_name}")
         
-        # Parse marker coordinates if provided
+        # Parse custom marker coordinates if provided
         marker_list = []
         if markers:
             marker_pairs = markers.strip().split(',')
@@ -88,19 +177,32 @@ async def generate_map_image(location: str, markers: Optional[str] = None,
                     marker_list.append({
                         'lat': lat, 
                         'lon': lon, 
-                        'name': f'Marker {len(marker_list) + 1}'
+                        'name': f'Marker {len(marker_list) + 1}',
+                        'type': 'custom'
                     })
-                    print(f"Added marker: {lat}, {lon}")
+                    print(f"Added custom marker: {lat}, {lon}")
                 except (ValueError, IndexError) as e:
                     print(f"Error parsing marker at index {i}: {e}")
                     continue
+        
+        # Fetch nearby places if requested
+        nearby_places = []
+        if show_nearby:
+            nearby_places = await get_nearby_places(
+                center_lat, center_lon, 
+                show_nearby, 
+                nearby_radius, 
+                nearby_limit
+            )
+            marker_list.extend(nearby_places)
         
         # Generate interactive map HTML
         map_html = generate_leaflet_map(
             center_lat, center_lon, 
             display_name, 
             marker_list,
-            loc.get('boundingbox', [])
+            loc.get('boundingbox', []),
+            show_nearby
         )
         
         return {
@@ -110,7 +212,8 @@ async def generate_map_image(location: str, markers: Optional[str] = None,
                 "lon": center_lon,
                 "display_name": display_name
             },
-            "markers": marker_list
+            "markers": marker_list,
+            "nearby_count": len(nearby_places) if show_nearby else 0
         }
         
     except Exception as e:
@@ -119,45 +222,120 @@ async def generate_map_image(location: str, markers: Optional[str] = None,
         traceback.print_exc()
         raise
 
+
 def generate_leaflet_map(lat: float, lon: float, location_name: str, 
-                         markers: List[Dict], boundingbox: List = None) -> str:
+                         markers: List[Dict], boundingbox: List = None,
+                         show_nearby: Optional[str] = None) -> str:
     """
-    Generate interactive Leaflet.js map HTML with OpenStreetMap tiles
+    Generate interactive Leaflet.js map HTML with Geoapify tiles
+    Supports different marker types with custom icons and colors
     """
     
-    # Build custom markers JavaScript
+    # Marker styling by type
+    marker_styles = {
+        'custom': {
+            'icon': '📌',
+            'color': '#2196F3',
+            'number': True
+        },
+        'tourism': {
+            'icon': '🏛️',
+            'color': '#9C27B0',
+            'number': False
+        },
+        'restaurant': {
+            'icon': '🍽️',
+            'color': '#FF5722',
+            'number': False
+        },
+        'hotel': {
+            'icon': '🏨',
+            'color': '#00BCD4',
+            'number': False
+        },
+        'cafe': {
+            'icon': '☕',
+            'color': '#8D6E63',
+            'number': False
+        }
+    }
+    
+    # Build markers JavaScript grouped by type
+    markers_by_type = {}
+    for marker in markers:
+        marker_type = marker.get('type', 'custom')
+        if marker_type not in markers_by_type:
+            markers_by_type[marker_type] = []
+        markers_by_type[marker_type].append(marker)
+    
     markers_js = ""
-    for i, marker in enumerate(markers):
-        markers_js += f"""
+    marker_counter = 1
+    
+    for marker_type, type_markers in markers_by_type.items():
+        style = marker_styles.get(marker_type, marker_styles['custom'])
+        
+        for marker in type_markers:
+            marker_name = marker.get('name', f'Marker {marker_counter}')
+            # Use HTML entities for escaping in template literals
+            marker_name_escaped = marker_name.replace("'", "&#39;").replace('"', '&quot;').replace('`', '&#96;')
+            
+            if style['number'] and marker_type == 'custom':
+                icon_html = f'{marker_counter}'
+                marker_counter += 1
+            else:
+                icon_html = style['icon']
+            
+            markers_js += f"""
         L.marker([{marker['lat']}, {marker['lon']}], {{
             icon: L.divIcon({{
-                className: 'custom-marker',
-                html: '<div style="background: #2196F3; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px;">{i+1}</div>',
-                iconSize: [32, 32]
+                className: 'custom-marker-{marker_type}',
+                html: '<div style="background: {style["color"]}; color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.35); font-size: {"14px" if style["number"] else "20px"};">{icon_html}</div>',
+                iconSize: [36, 36]
             }})
-        }}).addTo(map).bindPopup('<strong>{marker.get("name", f"Marker {i+1}")}</strong><br>Lat: {marker["lat"]:.4f}<br>Lon: {marker["lon"]:.4f}');
-        """
+        }}).addTo(map).bindPopup(`
+            <div style="min-width: 180px;">
+                <strong style="font-size: 15px;">{marker_name_escaped}</strong><br><br>
+                <span style="background: {style["color"]}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">{marker_type.upper()}</span><br><br>
+                📍 {marker['lat']:.5f}, {marker['lon']:.5f}
+            </div>
+        `);
+            """
     
-    # Main marker at center
+    # Main marker at center (escape location name first)
+    escaped_location = location_name.replace("'", "&#39;").replace('"', '&quot;')[:50]
     center_marker = f"""
     L.marker([{lat}, {lon}], {{
         icon: L.divIcon({{
-            className: 'custom-marker',
-            html: '<div style="background: #E91E63; color: white; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; border: 4px solid white; box-shadow: 0 3px 8px rgba(0,0,0,0.4);">📍</div>',
-            iconSize: [44, 44]
+            className: 'center-marker',
+            html: '<div style="background: #E91E63; color: white; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; border: 4px solid white; box-shadow: 0 4px 12px rgba(233,30,99,0.5); animation: pulse 2s infinite;">📍</div>',
+            iconSize: [48, 48]
         }})
-    }}).addTo(map).bindPopup('<div style="min-width: 200px;"><strong style="font-size: 16px;">{location_name}</strong><br><br>📍 Lat: {lat:.4f}<br>📍 Lon: {lon:.4f}</div>');
+    }}).addTo(map).bindPopup(`
+        <div style="min-width: 220px;">
+            <strong style="font-size: 17px; color: #E91E63;">📍 {escaped_location}</strong><br><br>
+            <strong>Coordinates:</strong><br>
+            Lat: {lat:.6f}<br>
+            Lon: {lon:.6f}
+        </div>
+    `);
     """
     
-    # Escape location name for JavaScript
-    js_location_name = location_name.replace("'", "\\'").replace('"', '\\"')
+    # JavaScript location name (truncated for display)
+    js_location_name = location_name.replace("'", "&#39;").replace('"', '&quot;')
+    display_location = js_location_name[:50] + ('...' if len(js_location_name) > 50 else '')
+    
+    # Marker statistics
+    marker_stats = ""
+    for marker_type, type_markers in markers_by_type.items():
+        style = marker_styles.get(marker_type, marker_styles['custom'])
+        marker_stats += f'<span style="background: {style["color"]}; color: white; padding: 4px 10px; border-radius: 6px; margin: 4px; display: inline-block; font-size: 0.85rem;">{style["icon"]} {marker_type.title()}: {len(type_markers)}</span>'
     
     html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenStreetMap - {location_name}</title>
+    <title>Map - {location_name}</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
           crossorigin=""/>
@@ -181,12 +359,14 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
             top: 10px;
             right: 10px;
             z-index: 1000;
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.25);
-            max-width: 320px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 340px;
             backdrop-filter: blur(10px);
+            max-height: 90vh;
+            overflow-y: auto;
         }}
         .map-controls h3 {{
             margin-bottom: 15px;
@@ -202,6 +382,16 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
         }}
         .map-controls strong {{
             color: #333;
+        }}
+        .marker-legend {{
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid #f0f0f0;
+        }}
+        .marker-legend h4 {{
+            font-size: 1rem;
+            color: #667eea;
+            margin-bottom: 10px;
         }}
         .leaflet-popup-content {{
             font-size: 14px;
@@ -225,7 +415,7 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
             bottom: 0;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.95);
             padding: 8px 15px;
             font-size: 0.85rem;
             z-index: 999;
@@ -247,15 +437,26 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
             font-size: 0.85rem;
             color: #888;
         }}
+        @keyframes pulse {{
+            0%, 100% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.1); }}
+        }}
     </style>
 </head>
 <body>
     <div class="map-controls">
         <h3>🗺️ Location Details</h3>
-        <p><strong>Location:</strong><br>{js_location_name[:60] + '...' if len(js_location_name) > 60 else js_location_name}</p>
-        <p><strong>Data Source:</strong> OpenStreetMap</p>
+        <p><strong>Location:</strong><br>{display_location}</p>
+        <p><strong>Data Source:</strong> Geoapify</p>
         <p><strong>Coordinates:</strong><br>Lat: {lat:.6f}<br>Lon: {lon:.6f}</p>
-        <p><strong>Markers:</strong> {len(markers) + 1} total</p>
+        <p><strong>Total Markers:</strong> {len(markers) + 1}</p>
+        
+        {"<p><strong>Showing Nearby:</strong> " + show_nearby.title() + "</p>" if show_nearby else ""}
+        
+        <div class="marker-legend">
+            <h4>📍 Marker Types</h4>
+            {marker_stats}
+        </div>
         
         <div class="info-section">
             🔍 Scroll to zoom<br>
@@ -267,42 +468,39 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
     <div id="map"></div>
     
     <div class="zoom-info">
-        <strong>Zoom Level:</strong> <span id="zoom-level">13</span>
+        <strong>Zoom:</strong> <span id="zoom-level">13</span>
     </div>
     
     <div class="attribution">
-        Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors
+        Powered by <a href="https://www.geoapify.com/" target="_blank">Geoapify</a>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin=""></script>
     <script>
-        console.log('Initializing OpenStreetMap...');
+        console.log('🗺️ Initializing Geoapify Map...');
         
-        // Initialize map with OpenStreetMap tiles
         var map = L.map('map').setView([{lat}, {lon}], 13);
         
-        console.log('Map created, adding tile layer...');
-
-        // Add OpenStreetMap tiles (Standard layer)
-        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-            attribution: '© OpenStreetMap contributors',
-            maxZoom: 19,
+        // Geoapify Map Tiles - Multiple styles available
+        L.tileLayer('https://maps.geoapify.com/v1/tile/osm-bright/{{z}}/{{x}}/{{y}}.png?apiKey={GEOAPIFY_API_KEY}', {{
+            attribution: 'Powered by <a href="https://www.geoapify.com/" target="_blank">Geoapify</a> | © OpenStreetMap contributors',
+            maxZoom: 20,
             minZoom: 2
         }}).addTo(map);
         
-        console.log('Tile layer added, adding markers...');
+        console.log('✅ Geoapify tile layer loaded');
 
-        // Add center marker
+        // Add center marker with pulse animation
         {center_marker}
         
-        console.log('Center marker added');
+        console.log('✅ Center marker added');
 
-        // Add custom markers
+        // Add all categorized markers
         {markers_js if markers_js else '// No additional markers'}
         
-        console.log('Custom markers added: {len(markers)}');
+        console.log('✅ Added {len(markers)} markers');
 
         // Fit bounds to show all markers
         var bounds = L.latLngBounds();
@@ -313,8 +511,8 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
         ''' if markers else ''}
         
         if ({len(markers)} > 0) {{
-            map.fitBounds(bounds, {{padding: [80, 80]}});
-            console.log('Map bounds fitted to include all markers');
+            map.fitBounds(bounds, {{padding: [100, 100]}});
+            console.log('✅ Map bounds fitted');
         }}
 
         // Update zoom level display
@@ -329,11 +527,10 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
             position: 'bottomleft'
         }}).addTo(map);
         
-        console.log('Map initialization complete!');
-        
-        // Log map info
+        console.log('🎉 Map initialization complete!');
         console.log('Center:', map.getCenter());
         console.log('Zoom:', map.getZoom());
+        console.log('Total markers:', {len(markers) + 1});
     </script>
 </body>
 </html>"""

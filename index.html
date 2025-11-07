@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WanderEase API Tester</title>
+    <title>WanderEase API Tester - Geoapify Edition</title>
     <style>
         * {
             margin: 0;
@@ -39,6 +39,16 @@
         .header p {
             font-size: 1.1rem;
             opacity: 0.9;
+        }
+
+        .header .badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
         }
 
         .config-panel {
@@ -159,6 +169,11 @@
             font-size: 0.95rem;
         }
 
+        .endpoint-card .param-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         .endpoint-card button {
             width: 100%;
             padding: 12px;
@@ -253,14 +268,12 @@
             border-radius: 10px;
             padding: 15px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s;
         }
 
-        .result-card img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            border-radius: 8px;
-            margin-bottom: 10px;
+        .result-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
         }
 
         .result-card h4 {
@@ -277,13 +290,6 @@
         .result-card .rating {
             color: #FFB300;
             font-weight: 600;
-        }
-
-        .map-image {
-            width: 100%;
-            max-width: 800px;
-            border-radius: 10px;
-            margin-top: 15px;
         }
 
         .stats-bar {
@@ -335,6 +341,17 @@
         .clear-btn:hover {
             box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4) !important;
         }
+
+        .info-banner {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: white;
+            text-align: center;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
     </style>
 </head>
 
@@ -343,13 +360,18 @@
         <div class="header">
             <h1>🗺️ WanderEase API Tester</h1>
             <p>Test all backend endpoints in one place</p>
+            <div class="badge">🚀 Powered by Geoapify</div>
+        </div>
+
+        <div class="info-banner">
+            <strong>🔥 Now using Geoapify API</strong> - Professional map tiles, better geocoding, and enhanced nearby places search!
         </div>
 
         <div class="config-panel">
             <h2>⚙️ Configuration</h2>
             <div class="input-group">
                 <label for="apiUrl">Backend API URL:</label>
-                <input type="text" id="apiUrl" value="http://localhost:8000" placeholder="http://localhost:8000">
+                <input type="text" id="apiUrl" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000">
             </div>
         </div>
 
@@ -439,7 +461,7 @@
                 <div class="status" id="hotel-status"></div>
             </div>
 
-            <!-- Map Generation Card -->
+            <!-- Map Generation - Enhanced -->
             <div class="endpoint-card">
                 <h3>
                     <span class="endpoint-icon map-icon">🗺️</span>
@@ -457,6 +479,7 @@
                     <option value="hotel">Show Hotels</option>
                     <option value="cafe">Show Cafes</option>
                 </select>
+                <input type="number" class="param-input" id="map-radius" placeholder="Radius in meters (default: 1000)" value="1000" min="100" max="5000">
                 <button onclick="testMap()">Generate Map</button>
                 <div class="status" id="map-status"></div>
             </div>
@@ -507,12 +530,9 @@
         function displayResults(data, type = 'json') {
             const resultsEl = document.getElementById('results');
 
-            // ALTERNATIVE APPROACH: Skip iframe, auto-open in new tab
-            // Replace the map section of displayResults with this
-
             if (type === 'map' && data.map_html) {
                 currentMapHtml = data.map_html;
-                console.log('Map HTML received');
+                console.log('Map HTML received from Geoapify');
 
                 resultsEl.innerHTML = `
                     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; color: white; text-align: center; margin-bottom: 20px;">
@@ -521,7 +541,11 @@
                         <p style="margin: 10px 0; font-size: 1.1rem;"><strong>Location:</strong> ${data.location}</p>
                         <p style="margin: 5px 0;"><strong>Center:</strong> Lat: ${data.center.lat.toFixed(4)}, Lon: ${data.center.lon.toFixed(4)}</p>
                         ${data.center.display_name ? `<p style="margin: 5px 0; opacity: 0.9;">${data.center.display_name}</p>` : ''}
-                        <p style="margin: 10px 0;"><strong>Markers:</strong> ${(data.markers ? data.markers.length : 0) + 1}</p>
+                        <p style="margin: 10px 0;"><strong>Total Markers:</strong> ${(data.markers ? data.markers.length : 0) + 1}</p>
+                        ${data.nearby_count ? `<p style="margin: 5px 0;"><strong>Nearby Places Found:</strong> ${data.nearby_count}</p>` : ''}
+                        <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.15); border-radius: 8px; backdrop-filter: blur(10px);">
+                            <strong>🚀 Powered by Geoapify</strong>
+                        </div>
                     </div>
                     
                     <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px;">
@@ -541,7 +565,7 @@
                         
                         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea;">
                             <p style="margin: 0; color: #666; line-height: 1.6;">
-                                <strong style="color: #667eea;">💡 Tip:</strong> The map will open in a new browser tab with full interactive features including zoom, pan, and clickable markers with detailed information.
+                                <strong style="color: #667eea;">💡 Tip:</strong> The map uses Geoapify's professional map tiles and will open in a new browser tab with full interactive features including zoom, pan, and clickable markers with detailed information.
                             </p>
                         </div>
                         
@@ -557,52 +581,44 @@
                         <pre style="margin-top: 15px; background: #f8f9fa; padding: 20px; border-radius: 8px; overflow-x: auto; max-height: 400px; font-size: 0.9rem;">${JSON.stringify(data, null, 2)}</pre>
                     </details>
                 `;
-
-                // Auto-open in new tab after short delay (optional)
-                // Uncomment next line if you want automatic opening
-                // setTimeout(() => openMapInNewTab(), 500);
             }
-            // Handle places/results display
             else if (type === 'places' && data.data && data.data.length > 0) {
                 let html = `
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px;">
-                <h3 style="margin: 0;">Found ${data.count} results in ${data.location}</h3>
-            </div>
-        `;
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px; color: white; margin-bottom: 20px;">
+                        <h3 style="margin: 0;">Found ${data.count} results in ${data.location}</h3>
+                        <p style="margin: 5px 0 0 0; opacity: 0.9;">Powered by Geoapify Places API</p>
+                    </div>
+                `;
                 html += '<div class="results-grid">';
 
                 data.data.forEach(item => {
                     const name = item.name || 'Unnamed';
-                    const rating = item.rating || 'N/A';
-                    const address = item.address || 'Address not available';
-                    const image = item.image_url || 'https://via.placeholder.com/300x200?text=No+Image';
-                    const type = item.type || item.cuisine || item.stars || '';
+                    const lat = item.lat ? item.lat.toFixed(5) : 'N/A';
+                    const lon = item.lon ? item.lon.toFixed(5) : 'N/A';
+                    const type = item.type || 'Place';
 
                     html += `
-                <div class="result-card">
-                    <img src="${image}" alt="${name}" onerror="this.src='https://via.placeholder.com/300x200?text=Image+Not+Found'">
-                    <h4>${name}</h4>
-                    <p><strong>Type:</strong> ${type}</p>
-                    <p><strong>Rating:</strong> <span class="rating">⭐ ${rating}</span></p>
-                    <p><strong>Address:</strong> ${address}</p>
-                    ${item.price_per_night ? `<p><strong>Price:</strong> ₹${item.price_per_night}/night</p>` : ''}
-                    ${item.cuisine ? `<p><strong>Cuisine:</strong> ${item.cuisine}</p>` : ''}
-                </div>
-            `;
+                        <div class="result-card">
+                            <h4>${name}</h4>
+                            <p><strong>Type:</strong> ${type}</p>
+                            <p><strong>📍 Coordinates:</strong><br>Lat: ${lat}<br>Lon: ${lon}</p>
+                            ${item.tags && item.tags.address_line1 ? `<p><strong>Address:</strong> ${item.tags.address_line1}</p>` : ''}
+                            ${item.tags && item.tags.website ? `<p><strong>Website:</strong> <a href="${item.tags.website}" target="_blank">Visit</a></p>` : ''}
+                        </div>
+                    `;
                 });
 
                 html += '</div>';
                 html += `
-            <details style="margin-top: 30px;">
-                <summary style="cursor: pointer; font-weight: 600; color: #667eea; padding: 10px; background: #f5f5f5; border-radius: 5px; user-select: none;">
-                    📄 Show Full JSON Response
-                </summary>
-                <pre style="margin-top: 10px; background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto; max-height: 400px;">${JSON.stringify(data, null, 2)}</pre>
-            </details>
-        `;
+                    <details style="margin-top: 30px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #667eea; padding: 10px; background: #f5f5f5; border-radius: 5px; user-select: none;">
+                            📄 Show Full JSON Response
+                        </summary>
+                        <pre style="margin-top: 10px; background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto; max-height: 400px;">${JSON.stringify(data, null, 2)}</pre>
+                    </details>
+                `;
                 resultsEl.innerHTML = html;
             }
-            // Handle generic JSON display
             else {
                 resultsEl.innerHTML = `<pre style="background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto;">${JSON.stringify(data, null, 2)}</pre>`;
             }
@@ -621,6 +637,8 @@
                         url.searchParams.append(key, params[key]);
                     }
                 });
+
+                console.log('Making request to:', url.toString());
 
                 const response = await fetch(url);
                 const data = await response.json();
@@ -643,7 +661,11 @@
                 stats.errorCount++;
                 const responseTime = Date.now() - startTime;
                 setStatus(statusId, 'error', `❌ Error: ${error.message}`);
-                displayResults({ error: error.message, details: 'Make sure the backend is running on the specified URL' });
+                displayResults({ 
+                    error: error.message, 
+                    details: 'Make sure the backend is running on the specified URL',
+                    hint: 'Check if the API server is running on http://127.0.0.1:8000'
+                });
                 updateStats();
             }
         }
@@ -695,13 +717,21 @@
         async function testMap() {
             const location = document.getElementById('map-location').value;
             const markers = document.getElementById('map-markers').value;
+            const showNearby = document.getElementById('map-nearby').value;
+            const radius = document.getElementById('map-radius').value;
 
             if (!location) {
                 alert('Please enter a location');
                 return;
             }
 
-            await makeRequest('/api/map', { location, markers }, 'map', 'map');
+            const params = { location, markers };
+            if (showNearby) {
+                params.show_nearby = showNearby;
+                params.nearby_radius = radius;
+            }
+
+            await makeRequest('/api/map', params, 'map', 'map');
         }
 
         function openMapInNewTab() {
@@ -720,7 +750,8 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'map.html';
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                a.download = `wanderease-map-${timestamp}.html`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -730,7 +761,6 @@
             }
         }
 
-        // Add this new function for showing a quick preview
         function showMapPreview() {
             if (!currentMapHtml) {
                 alert('No map available');
@@ -744,7 +774,7 @@
             previewDiv.innerHTML = `
                 <div style="width: 95%; height: 95%; background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column;">
                     <div style="padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                        <h3 style="margin: 0; font-size: 1.5rem;">🗺️ Map Preview</h3>
+                        <h3 style="margin: 0; font-size: 1.5rem;">🗺️ Map Preview - Geoapify</h3>
                         <button onclick="document.getElementById('map-preview').remove()" style="background: white; color: #667eea; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">
                             ✕ Close
                         </button>
@@ -757,7 +787,6 @@
 
             document.body.appendChild(previewDiv);
 
-            // Load map in preview
             setTimeout(() => {
                 const iframe = document.getElementById('preview-frame');
                 if (iframe) {
@@ -768,7 +797,6 @@
                 }
             }, 100);
 
-            // Close on background click
             previewDiv.addEventListener('click', function (e) {
                 if (e.target === previewDiv) {
                     previewDiv.remove();
@@ -778,6 +806,7 @@
 
         function clearResults() {
             document.getElementById('results').innerHTML = '<p style="color: #999; text-align: center; padding: 40px;">Results cleared. Test another endpoint!</p>';
+            currentMapHtml = null;
         }
 
         // Auto-fill some example data on load
@@ -785,7 +814,10 @@
             document.getElementById('tourism-location').value = 'Paris';
             document.getElementById('restaurant-location').value = 'Tokyo';
             document.getElementById('hotel-location').value = 'London';
-            document.getElementById('map-location').value = 'New York';
+            document.getElementById('map-location').value = 'Indore';
+            
+            console.log('🚀 WanderEase API Tester loaded');
+            console.log('✅ Geoapify integration active');
         };
     </script>
 </body>
