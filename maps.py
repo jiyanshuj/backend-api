@@ -1,7 +1,7 @@
 """
-Enhanced Maps Module - With Geoapify API Integration
+Enhanced Maps Module - With Improved Geoapify API Integration
 Generates interactive map HTML using Leaflet.js with Geoapify tiles
-Includes Geoapify Places API for nearby places
+Includes enhanced location accuracy with bias parameters
 """
 
 from typing import Dict, List, Optional
@@ -12,25 +12,37 @@ import json
 GEOAPIFY_API_KEY = "872520433e264a4ea93c5e7f5db329a5"
 
 
-async def get_location_coordinates(location: str) -> Optional[Dict]:
+async def get_location_coordinates(location: str, bias_country: Optional[str] = None) -> Optional[Dict]:
     """
-    Get coordinates using Geoapify Geocoding API
+    Get coordinates using Geoapify Geocoding API with enhanced accuracy
     
     Args:
         location: Location name or address
+        bias_country: Optional country code to bias results (e.g., 'in' for India)
     
     Returns:
         Dict with lat, lon, display_name, or None if not found
     """
     try:
-        # Geoapify Geocoding API
+        # Geoapify Geocoding API with enhanced parameters
         url = "https://api.geoapify.com/v1/geocode/search"
         params = {
             'text': location,
             'format': 'json',
-            'limit': 1,
+            'limit': 5,  # Get multiple results to choose best match
             'apiKey': GEOAPIFY_API_KEY
         }
+        
+        # Add bias parameters for better accuracy
+        # Remove default auto-detection and let user location be prioritized
+        if bias_country:
+            params['filter'] = f'countrycode:{bias_country}'
+        else:
+            # Set bias to none to avoid auto country detection issues
+            params['bias'] = 'countrycode:none'
+        
+        print(f"Geocoding request for: {location}")
+        print(f"Parameters: {params}")
         
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, timeout=10) as response:
@@ -39,8 +51,53 @@ async def get_location_coordinates(location: str) -> Optional[Dict]:
                     results = data.get('results', [])
                     
                     if results and len(results) > 0:
-                        result = results[0]
-                        return {
+                        # Log all results for debugging
+                        print(f"Found {len(results)} results:")
+                        for i, result in enumerate(results):
+                            formatted = result.get('formatted', 'N/A')
+                            rank = result.get('rank', {}).get('popularity', 0)
+                            confidence = result.get('rank', {}).get('confidence', 0)
+                            print(f"  {i+1}. {formatted}")
+                            print(f"      Rank: {rank}, Confidence: {confidence}")
+                            print(f"      Lat: {result.get('lat')}, Lon: {result.get('lon')}")
+                        
+                        # Smart result selection - prioritize more specific matches
+                        best_result = results[0]  # Default to first
+                        
+                        # Search for the most specific match (contains more location keywords)
+                        location_keywords = location.lower().split(',')
+                        location_keywords = [k.strip() for k in location_keywords]
+                        
+                        max_matches = 0
+                        for result in results:
+                            formatted_lower = result.get('formatted', '').lower()
+                            city = result.get('city', '').lower()
+                            state = result.get('state', '').lower()
+                            
+                            # Count how many keywords from query appear in this result
+                            matches = 0
+                            for keyword in location_keywords:
+                                if keyword in formatted_lower or keyword in city or keyword in state:
+                                    matches += 1
+                            
+                            # Bonus for having "City" or specific district in the name
+                            if 'city' in formatted_lower or 'district' in formatted_lower:
+                                matches += 0.5
+                            
+                            # Prefer results with lower rank (more popular) as tiebreaker
+                            rank_penalty = result.get('rank', {}).get('popularity', 1)
+                            
+                            # Calculate score (higher is better)
+                            score = matches - (rank_penalty * 0.1)
+                            
+                            if score > max_matches:
+                                max_matches = score
+                                best_result = result
+                        
+                        result = best_result
+                        print(f"\n✅ Best match selected: {result.get('formatted', 'N/A')}")
+                        
+                        coords = {
                             'lat': result['lat'],
                             'lon': result['lon'],
                             'display_name': result.get('formatted', location),
@@ -52,9 +109,19 @@ async def get_location_coordinates(location: str) -> Optional[Dict]:
                                 result.get('bbox', {}).get('lon2')
                             ]
                         }
+                        
+                        print(f"Selected location: {coords['display_name']}")
+                        print(f"Coordinates: {coords['lat']}, {coords['lon']}")
+                        
+                        return coords
+                else:
+                    print(f"Geocoding API error: {response.status}")
+        
         return None
     except Exception as e:
         print(f"Error getting coordinates from Geoapify: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -97,7 +164,7 @@ async def get_nearby_places(lat: float, lon: float, place_type: str,
             'apiKey': GEOAPIFY_API_KEY
         }
         
-        print(f"Fetching nearby {place_type} within {radius}m using Geoapify...")
+        print(f"Fetching nearby {place_type} within {radius}m at ({lat}, {lon})...")
         
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params, timeout=30) as response:
@@ -124,6 +191,8 @@ async def get_nearby_places(lat: float, lon: float, place_type: str,
                     
                     print(f"Found {len(places)} nearby {place_type}")
                     return places[:limit]
+                else:
+                    print(f"Places API error: {response.status}")
         
         return []
     except Exception as e:
@@ -136,7 +205,8 @@ async def get_nearby_places(lat: float, lon: float, place_type: str,
 async def generate_map_image(location: str, markers: Optional[str] = None, 
                             show_nearby: Optional[str] = None,
                             nearby_radius: int = 1000,
-                            nearby_limit: int = 20) -> Dict:
+                            nearby_limit: int = 20,
+                            bias_country: Optional[str] = None) -> Dict:
     """
     Generate an interactive map HTML with markers using Geoapify
     
@@ -146,14 +216,39 @@ async def generate_map_image(location: str, markers: Optional[str] = None,
         show_nearby: Type of nearby places to show (tourism, restaurant, hotel, cafe)
         nearby_radius: Search radius for nearby places in meters (default 1000)
         nearby_limit: Max number of nearby places to show (default 20)
+        bias_country: Optional ISO country code to bias results (e.g., 'in' for India)
     
     Returns:
         Dict with HTML map and center coordinates
     """
     try:
-        # Get center coordinates using Geoapify Geocoding
+        # Auto-detect country bias from location if it contains country indicators
+        detected_country = None
+        location_lower = location.lower()
+        
+        # Common country detection patterns
+        country_patterns = {
+            'in': ['india', 'indore', 'mumbai', 'delhi', 'bangalore', 'hyderabad', 'chennai'],
+            'us': ['usa', 'united states', 'new york', 'los angeles', 'chicago'],
+            'fr': ['france', 'paris', 'lyon', 'marseille'],
+            'gb': ['uk', 'united kingdom', 'london', 'manchester'],
+            'de': ['germany', 'berlin', 'munich', 'hamburg'],
+            'jp': ['japan', 'tokyo', 'osaka', 'kyoto'],
+            'cn': ['china', 'beijing', 'shanghai', 'guangzhou'],
+        }
+        
+        for country_code, keywords in country_patterns.items():
+            if any(keyword in location_lower for keyword in keywords):
+                detected_country = country_code
+                print(f"Detected country: {country_code} from location: {location}")
+                break
+        
+        # Use provided bias or detected country
+        final_bias = bias_country or detected_country
+        
+        # Get center coordinates using Geoapify Geocoding with bias
         print(f"Fetching coordinates for location: {location}")
-        loc = await get_location_coordinates(location)
+        loc = await get_location_coordinates(location, final_bias)
         
         if not loc:
             raise Exception(f"Location '{location}' not found in Geoapify")
