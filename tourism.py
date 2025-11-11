@@ -1,13 +1,14 @@
 """
 Tourism places module
 Handles fetching tourism data from MongoDB or OpenStreetMap
+Now with Google Custom Search API for real images
 """
 
 import requests
 import time
 from typing import List, Dict
 from db import get_tourism_from_db, save_tourism_to_db
-from utils import get_location_coordinates, get_place_image, build_address
+from utils import get_location_coordinates, build_address, fetch_google_image
 
 async def get_tourism_places(location: str, limit: int = 20) -> List[Dict]:
     """
@@ -36,6 +37,7 @@ async def get_tourism_places(location: str, limit: int = 20) -> List[Dict]:
 async def fetch_tourism_from_osm(query: str, limit: int = 20) -> List[Dict]:
     """
     Fetch tourism places from OpenStreetMap using Overpass API
+    Enhanced with Google Custom Search for real images
     """
     try:
         # Get location coordinates
@@ -90,11 +92,14 @@ async def fetch_tourism_from_osm(query: str, limit: int = 20) -> List[Dict]:
             place_lat = element.get('lat', lat)
             place_lon = element.get('lon', lon)
             
-            # Get image using Google Custom Search (free tier)
-            image_url = await get_place_image(name, query)
+            # Build tourism type
+            tourism_type = tags.get('tourism', tags.get('historic', 'attraction'))
+            
+            # Fetch real image from Google Custom Search
+            print(f"🔍 Fetching image for tourism place: {name}")
+            image_url = await fetch_google_image(f"{name} {tourism_type}", query)
             
             # Build description
-            tourism_type = tags.get('tourism', tags.get('historic', 'attraction'))
             description = tags.get('description', f"{tourism_type.replace('_', ' ').title()}")
             
             place = {
@@ -121,8 +126,9 @@ async def fetch_tourism_from_osm(query: str, limit: int = 20) -> List[Dict]:
             if len(places) >= limit:
                 break
         
+        print(f"✅ Successfully fetched {len(places)} tourism places with Google images")
         return places
         
     except Exception as e:
-        print(f"Error fetching tourism places: {str(e)}")
+        print(f"❌ Error fetching tourism places: {str(e)}")
         return []

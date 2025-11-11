@@ -1,12 +1,13 @@
 """
 Hotels module
 Handles fetching hotel data from MongoDB or OpenStreetMap
+Now with Google Custom Search API for real images
 """
 
 import requests
-from typing import List, Dict
+from typing import List, Dict, Optional
 from db import get_hotels_from_db, save_hotels_to_db
-from utils import get_location_coordinates, get_place_image, build_address
+from utils import get_location_coordinates, build_address, fetch_google_image
 
 async def get_hotels(location: str, limit: int = 20) -> List[Dict]:
     """
@@ -35,6 +36,7 @@ async def get_hotels(location: str, limit: int = 20) -> List[Dict]:
 async def fetch_hotels_from_osm(query: str, limit: int = 20) -> List[Dict]:
     """
     Fetch hotels from OpenStreetMap using Overpass API
+    Enhanced with Google Custom Search for real images
     """
     try:
         # Get location coordinates
@@ -87,8 +89,9 @@ async def fetch_hotels_from_osm(query: str, limit: int = 20) -> List[Dict]:
             place_lat = element.get('lat', lat)
             place_lon = element.get('lon', lon)
             
-            # Get image
-            image_url = await get_place_image(name + " hotel", query)
+            # Fetch real image from Google Custom Search
+            print(f"🔍 Fetching image for hotel: {name}")
+            image_url = await fetch_google_image(f"{name} hotel", query)
             
             # Get hotel type
             hotel_type = tags.get('tourism', 'hotel')
@@ -147,8 +150,9 @@ async def fetch_hotels_from_osm(query: str, limit: int = 20) -> List[Dict]:
             if len(hotels) >= limit:
                 break
         
+        print(f"✅ Successfully fetched {len(hotels)} hotels with Google images")
         return hotels
         
     except Exception as e:
-        print(f"Error fetching hotels: {str(e)}")
+        print(f"❌ Error fetching hotels: {str(e)}")
         return []

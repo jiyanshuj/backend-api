@@ -1,12 +1,13 @@
 """
 Restaurants module
 Handles fetching restaurant data from MongoDB or OpenStreetMap
+Now with Google Custom Search API for real images
 """
 
 import requests
 from typing import List, Dict
 from db import get_restaurants_from_db, save_restaurants_to_db
-from utils import get_location_coordinates, get_place_image, build_address
+from utils import get_location_coordinates, build_address, fetch_google_image
 
 async def get_restaurants(location: str, limit: int = 20) -> List[Dict]:
     """
@@ -35,6 +36,7 @@ async def get_restaurants(location: str, limit: int = 20) -> List[Dict]:
 async def fetch_restaurants_from_osm(query: str, limit: int = 20) -> List[Dict]:
     """
     Fetch restaurants from OpenStreetMap using Overpass API
+    Enhanced with Google Custom Search for real images
     """
     try:
         # Get location coordinates
@@ -87,11 +89,12 @@ async def fetch_restaurants_from_osm(query: str, limit: int = 20) -> List[Dict]:
             place_lat = element.get('lat', lat)
             place_lon = element.get('lon', lon)
             
-            # Get image
-            image_url = await get_place_image(name + " restaurant", query)
-            
             # Get amenity type
             amenity_type = tags.get('amenity', 'restaurant')
+            
+            # Fetch real image from Google Custom Search
+            print(f"🔍 Fetching image for restaurant: {name}")
+            image_url = await fetch_google_image(f"{name} {amenity_type}", query)
             
             # Get cuisine
             cuisine = tags.get('cuisine', 'Multi-cuisine')
@@ -125,8 +128,9 @@ async def fetch_restaurants_from_osm(query: str, limit: int = 20) -> List[Dict]:
             if len(restaurants) >= limit:
                 break
         
+        print(f"✅ Successfully fetched {len(restaurants)} restaurants with Google images")
         return restaurants
         
     except Exception as e:
-        print(f"Error fetching restaurants: {str(e)}")
+        print(f"❌ Error fetching restaurants: {str(e)}")
         return []

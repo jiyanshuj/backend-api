@@ -1,5 +1,6 @@
 """
 Utility functions for location, images, and helpers
+Now with integrated Google Custom Search API
 """
 
 import requests
@@ -7,9 +8,12 @@ import time
 import os
 from typing import Dict, Optional
 
-# Google Custom Search API credentials (Free tier: 100 queries/day)
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
-GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID", "")
+# Google Custom Search API credentials
+GOOGLE_API_KEY = "AIzaSyCLqG3mulQb5YHtWCQyDm6yyutxbsr5g2g"
+GOOGLE_SEARCH_ENGINE_ID = "f28e39dbb2a6b418e"
+
+# Gemini API Key (for future use)
+GEMINI_API_KEY = "AIzaSyDW4lWmREnqeVcHXrpfogMRMRcUNHCjZd4"
 
 def get_location_coordinates(query: str) -> Optional[Dict]:
     """
@@ -47,34 +51,33 @@ def get_location_coordinates(query: str) -> Optional[Dict]:
         print(f"Error getting location: {str(e)}")
         return None
 
-async def get_place_image(place_name: str, location_context: str = "") -> str:
+async def fetch_google_image(place_name: str, location_context: str = "") -> str:
     """
-    Get place image using Google Custom Search API (free tier)
-    Falls back to placeholder if not available
+    Fetch real images using Google Custom Search API
     
     Args:
-        place_name: Name of the place
-        location_context: Additional location context for better results
+        place_name: Name of the place (hotel, restaurant, tourism spot)
+        location_context: Location for better search results
     
     Returns:
-        Image URL
+        Image URL from Google or placeholder if not found
     """
     try:
-        if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
-            return await get_placeholder_image(place_name)
-        
-        # Build search query
+        # Construct optimized search query
         search_query = f"{place_name} {location_context}".strip()
         
+        # Google Custom Search API endpoint
         url = "https://www.googleapis.com/customsearch/v1"
+        
         params = {
             'key': GOOGLE_API_KEY,
-            'cx': GOOGLE_CSE_ID,
+            'cx': GOOGLE_SEARCH_ENGINE_ID,
             'q': search_query,
             'searchType': 'image',
-            'num': 1,
+            'num': 1,  # Get only the best result
             'imgSize': 'large',
-            'safe': 'active'
+            'safe': 'active',
+            'fileType': 'jpg,png'
         }
         
         response = requests.get(url, params=params, timeout=10)
@@ -84,18 +87,26 @@ async def get_place_image(place_name: str, location_context: str = "") -> str:
             items = data.get('items', [])
             
             if items and 'link' in items[0]:
-                return items[0]['link']
+                image_url = items[0]['link']
+                print(f"✅ Found image: {image_url[:80]}...")
+                return image_url
+            else:
+                print(f"⚠️ No image found in Google results for: {place_name}")
+        else:
+            print(f"⚠️ Google API error: {response.status_code}")
+            if response.status_code == 429:
+                print("⚠️ Rate limit reached! Consider caching images in MongoDB")
         
-        # Fallback to Wikimedia if Google fails
+        # Fallback to Wikimedia
         return await get_wikimedia_image(place_name)
         
     except Exception as e:
-        print(f"Error getting place image: {str(e)}")
+        print(f"❌ Error fetching Google image: {str(e)}")
         return await get_placeholder_image(place_name)
 
 async def get_wikimedia_image(place_name: str) -> str:
     """
-    Try to get image from Wikimedia Commons (free)
+    Fallback: Try to get image from Wikimedia Commons (free)
     """
     try:
         # Search Wikimedia Commons
@@ -119,21 +130,29 @@ async def get_wikimedia_image(place_name: str) -> str:
             page = next(iter(pages.values()))
             imageinfo = page.get('imageinfo', [])
             if imageinfo and 'thumburl' in imageinfo[0]:
+                print(f"✅ Found Wikimedia image for: {place_name}")
                 return imageinfo[0]['thumburl']
         
         return await get_placeholder_image(place_name)
         
     except Exception as e:
-        print(f"Error getting Wikimedia image: {str(e)}")
+        print(f"⚠️ Wikimedia search failed: {str(e)}")
         return await get_placeholder_image(place_name)
 
 async def get_placeholder_image(place_name: str) -> str:
     """
-    Generate placeholder image URL
+    Generate placeholder image URL with better styling
     """
-    # Use placeholder.com or similar service
+    # Use placeholder.com with custom styling
     encoded_name = place_name.replace(' ', '+')
-    return f"https://via.placeholder.com/800x600.png?text={encoded_name}"
+    return f"https://via.placeholder.com/800x600/667eea/ffffff?text={encoded_name}"
+
+# Legacy function for backward compatibility
+async def get_place_image(place_name: str, location_context: str = "") -> str:
+    """
+    Legacy wrapper - now uses Google Custom Search
+    """
+    return await fetch_google_image(place_name, location_context)
 
 def build_address(tags: Dict) -> str:
     """
