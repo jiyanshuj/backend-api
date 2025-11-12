@@ -1,6 +1,6 @@
 """
 Database module for MongoDB operations
-Collections: tourism, restaurants, hotels
+Collections: tourism, restaurants, hotels, users
 """
 
 from pymongo import MongoClient, GEOSPHERE
@@ -25,21 +25,92 @@ def init_db():
     db = client[DB_NAME]
     
     # Create geospatial indexes for location-based queries
-    db.tourism.create_index([("location", GEOSPHERE)])
-    db.restaurants.create_index([("location", GEOSPHERE)])
-    db.hotels.create_index([("location", GEOSPHERE)])
+    try:
+        db.tourism.create_index([("location", GEOSPHERE)])
+        db.restaurants.create_index([("location", GEOSPHERE)])
+        db.hotels.create_index([("location", GEOSPHERE)])
+    except Exception as e:
+        print(f"⚠️ Geospatial indexes already exist or error: {e}")
     
     # Create unique indexes on place_id/restaurant_id/hotel_id
-    db.tourism.create_index("place_id", unique=True)
-    db.restaurants.create_index("restaurant_id", unique=True)
-    db.hotels.create_index("hotel_id", unique=True)
+    try:
+        db.tourism.create_index("place_id", unique=True)
+    except Exception:
+        pass
+    try:
+        db.restaurants.create_index("restaurant_id", unique=True)
+    except Exception:
+        pass
+    try:
+        db.hotels.create_index("hotel_id", unique=True)
+    except Exception:
+        pass
     
     # Index on location name for text search
-    db.tourism.create_index("location_query")
-    db.restaurants.create_index("location_query")
-    db.hotels.create_index("location_query")
+    try:
+        db.tourism.create_index("location_query")
+        db.restaurants.create_index("location_query")
+        db.hotels.create_index("location_query")
+    except Exception:
+        pass
     
-    print("Database initialized successfully")
+    # ===== USERS COLLECTION SETUP =====
+    # Check if users collection has any documents with null clerk_id
+    try:
+        null_clerk_count = db.users.count_documents({"clerk_id": None})
+        if null_clerk_count > 0:
+            print(f"⚠️ Found {null_clerk_count} users with null clerk_id. Cleaning up...")
+            db.users.delete_many({"clerk_id": None})
+            print(f"✅ Removed {null_clerk_count} invalid user documents")
+        
+        # Also remove users with empty string clerk_id
+        empty_clerk_count = db.users.count_documents({"clerk_id": ""})
+        if empty_clerk_count > 0:
+            print(f"⚠️ Found {empty_clerk_count} users with empty clerk_id. Cleaning up...")
+            db.users.delete_many({"clerk_id": ""})
+            print(f"✅ Removed {empty_clerk_count} invalid user documents")
+    except Exception as e:
+        print(f"⚠️ Error checking for null clerk_id: {e}")
+    
+    # Drop existing indexes that might be causing conflicts
+    try:
+        existing_indexes = db.users.list_indexes()
+        for index in existing_indexes:
+            if index['name'] not in ['_id_']:  # Don't drop the default _id index
+                try:
+                    db.users.drop_index(index['name'])
+                    print(f"🗑️ Dropped existing index: {index['name']}")
+                except Exception as e:
+                    print(f"⚠️ Could not drop index {index['name']}: {e}")
+    except Exception as e:
+        print(f"⚠️ Error listing/dropping indexes: {e}")
+    
+    # Create fresh indexes for users collection
+    try:
+        # Primary key: clerk_id (unique)
+        db.users.create_index("clerk_id", unique=True, sparse=True)
+        print("✅ Created unique index on clerk_id")
+    except Exception as e:
+        print(f"⚠️ clerk_id index already exists or error: {e}")
+    
+    try:
+        # Email index for lookups (sparse to allow null for now)
+        db.users.create_index("email", unique=True, sparse=True)
+        print("✅ Created unique index on email")
+    except Exception as e:
+        print(f"⚠️ email index already exists or error: {e}")
+    
+    # Index on liked items for faster queries (non-unique)
+    try:
+        db.users.create_index("liked.tourism.item_id")
+        db.users.create_index("liked.restaurants.item_id")
+        db.users.create_index("liked.hotels.item_id")
+        print("✅ Created indexes on liked items")
+    except Exception as e:
+        print(f"⚠️ liked items indexes already exist or error: {e}")
+    
+    print("✅ Database initialized successfully")
+    print("✅ Users collection configured with clerk_id as primary key")
 
 def close_db():
     """Close MongoDB connection"""
@@ -65,6 +136,8 @@ def serialize_doc(doc):
                 continue  # Skip MongoDB _id field
             elif isinstance(value, ObjectId):
                 result[key] = str(value)
+            elif isinstance(value, datetime):
+                result[key] = value.isoformat()
             elif isinstance(value, dict):
                 result[key] = serialize_doc(value)
             elif isinstance(value, list):
