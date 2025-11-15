@@ -126,7 +126,7 @@ async def get_location_coordinates(location: str, bias_country: Optional[str] = 
 
 
 async def get_nearby_places(lat: float, lon: float, place_type: str, 
-                           radius: int = 1000, limit: int = 20) -> List[Dict]:
+                           radius: int = 10000, limit: int = 20) -> List[Dict]:
     """
     Fetch nearby places using Geoapify Places API
     
@@ -204,7 +204,7 @@ async def get_nearby_places(lat: float, lon: float, place_type: str,
 
 async def generate_map_image(location: str, markers: Optional[str] = None, 
                             show_nearby: Optional[str] = None,
-                            nearby_radius: int = 1000,
+                            nearby_radius: int = 10000,
                             nearby_limit: int = 20,
                             bias_country: Optional[str] = None) -> Dict:
     """

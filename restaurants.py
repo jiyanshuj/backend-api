@@ -1,13 +1,21 @@
 """
-Restaurants module
+Restaurants module with timeout fixes and retry logic
 Handles fetching restaurant data from MongoDB or OpenStreetMap
 Now with Google Custom Search API for real images
 """
 
 import requests
 from typing import List, Dict
+import time
 from db import get_restaurants_from_db, save_restaurants_to_db
 from utils import get_location_coordinates, build_address, fetch_google_image
+
+# Multiple Overpass API servers (fallback if one is down)
+OVERPASS_SERVERS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.openstreetmap.ru/api/interpreter",
+]
 
 async def get_restaurants(location: str, limit: int = 20) -> List[Dict]:
     """
@@ -36,47 +44,84 @@ async def get_restaurants(location: str, limit: int = 20) -> List[Dict]:
 async def fetch_restaurants_from_osm(query: str, limit: int = 20) -> List[Dict]:
     """
     Fetch restaurants from OpenStreetMap using Overpass API
-    Enhanced with Google Custom Search for real images
+    Enhanced with retry logic and multiple servers
     """
     try:
         # Get location coordinates
         location = get_location_coordinates(query)
         if not location:
+            print(f"❌ Could not geocode location: {query}")
             return []
         
         lat = location['lat']
         lon = location['lon']
-        
-        # Overpass API endpoint
-        overpass_url = "https://overpass-api.de/api/interpreter"
+        print(f"📍 Coordinates for {query}: {lat}, {lon}")
         
         # Search radius (5km)
-        radius = 5000
+        radius = 50000
         
-        # Query for restaurants
+        # Simplified query for faster response
         overpass_query = f"""
-        [out:json][timeout:25];
+        [out:json][timeout:90];
         (
-          node["amenity"~"restaurant|cafe|fast_food|food_court|bar|pub"](around:{radius},{lat},{lon});
-          way["amenity"~"restaurant|cafe|fast_food|food_court|bar|pub"](around:{radius},{lat},{lon});
+          node["amenity"~"restaurant|cafe|fast_food"](around:{radius},{lat},{lon});
+          way["amenity"~"restaurant|cafe|fast_food"](around:{radius},{lat},{lon});
         );
-        out body;
-        >;
-        out skel qt;
+        out center {limit * 2};
         """
         
-        response = requests.post(
-            overpass_url,
-            data={'data': overpass_query},
-            timeout=30
-        )
-        response.raise_for_status()
-        data = response.json()
+        # Try each server until one works
+        data = None
+        last_error = None
         
+        for server_idx, overpass_url in enumerate(OVERPASS_SERVERS):
+            try:
+                print(f"🔄 Attempt {server_idx + 1}/{len(OVERPASS_SERVERS)}: Trying {overpass_url}")
+                
+                response = requests.post(
+                    overpass_url,
+                    data={'data': overpass_query},
+                    timeout=90,  # Increased to 90 seconds
+                    headers={'User-Agent': 'WanderEase/2.0'}
+                )
+                response.raise_for_status()
+                data = response.json()
+                
+                print(f"✅ Successfully got response from {overpass_url}")
+                break  # Success! Exit retry loop
+                
+            except requests.exceptions.Timeout:
+                last_error = "Timeout"
+                print(f"⏱️ Timeout on {overpass_url} after 90s")
+                
+                # Wait before trying next server
+                if server_idx < len(OVERPASS_SERVERS) - 1:
+                    time.sleep(2)
+                continue
+                
+            except requests.exceptions.RequestException as e:
+                last_error = str(e)
+                print(f"⚠️ Error with {overpass_url}: {e}")
+                
+                # Wait before trying next server
+                if server_idx < len(OVERPASS_SERVERS) - 1:
+                    time.sleep(2)
+                continue
+        
+        # If all servers failed
+        if data is None:
+            print(f"❌ All Overpass servers failed. Last error: {last_error}")
+            print("💡 Tip: The Overpass API might be overloaded. Try again in a few minutes.")
+            return []
+        
+        # Process results
         restaurants = []
         seen_names = set()
         
         for element in data.get('elements', []):
+            if len(restaurants) >= limit:
+                break
+                
             tags = element.get('tags', {})
             name = tags.get('name', 'Unnamed Restaurant')
             
@@ -86,15 +131,25 @@ async def fetch_restaurants_from_osm(query: str, limit: int = 20) -> List[Dict]:
             seen_names.add(name)
             
             # Get coordinates
-            place_lat = element.get('lat', lat)
-            place_lon = element.get('lon', lon)
+            if element.get('type') == 'node':
+                place_lat = element.get('lat', lat)
+                place_lon = element.get('lon', lon)
+            else:
+                # For ways, use center
+                center = element.get('center', {})
+                place_lat = center.get('lat', lat)
+                place_lon = center.get('lon', lon)
             
             # Get amenity type
             amenity_type = tags.get('amenity', 'restaurant')
             
             # Fetch real image from Google Custom Search
-            print(f"🔍 Fetching image for restaurant: {name}")
-            image_url = await fetch_google_image(f"{name} {amenity_type}", query)
+            print(f"🖼️ Fetching image for restaurant: {name}")
+            try:
+                image_url = await fetch_google_image(f"{name} {amenity_type}", query)
+            except Exception as img_error:
+                print(f"⚠️ Image fetch failed for {name}: {img_error}")
+                image_url = None
             
             # Get cuisine
             cuisine = tags.get('cuisine', 'Multi-cuisine')
@@ -124,13 +179,13 @@ async def fetch_restaurants_from_osm(query: str, limit: int = 20) -> List[Dict]:
             }
             
             restaurants.append(restaurant)
-            
-            if len(restaurants) >= limit:
-                break
+            print(f"🍽️ Added: {name} ({cuisine})")
         
-        print(f"✅ Successfully fetched {len(restaurants)} restaurants with Google images")
+        print(f"✅ Successfully fetched {len(restaurants)} restaurants")
         return restaurants
         
     except Exception as e:
         print(f"❌ Error fetching restaurants: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []
