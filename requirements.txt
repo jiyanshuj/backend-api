@@ -5,3 +5,4 @@ pydantic[email]  # This includes email-validator
 requests
 aiohttp
 python-multipart
+bson
