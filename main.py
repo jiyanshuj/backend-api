@@ -1,7 +1,6 @@
 """
 WanderEase Backend - Main API Server
-FastAPI application for tourism, restaurants, hotels, and user management
-Now with Google Custom Search API integration for real images
+FastAPI application with auto user creation on first interaction
 """
 
 from fastapi import FastAPI, HTTPException, Query, Body
@@ -49,7 +48,7 @@ async def lifespan(app: FastAPI):
     print("🚀 Starting WanderEase API Server...")
     print("📸 Google Custom Search API: ENABLED")
     print("🔑 API Key Status: Active")
-    print("👤 User Management: ENABLED")
+    print("👤 User Management: ENABLED (Auto-create on first like)")
     init_db()
     yield
     # Shutdown
@@ -59,32 +58,72 @@ async def lifespan(app: FastAPI):
 # Initialize FastAPI app
 app = FastAPI(
     title="WanderEase API",
-    version="2.1.0",
-    description="Tourism API with real images and user management",
+    version="2.2.0",
+    description="Tourism API with real images and auto user management",
     lifespan=lifespan
 )
 
 # CORS middleware - Allow all origins for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
-    expose_headers=["*"]  # Expose all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
 )
+
+def ensure_user_exists(clerk_id: str, name: Optional[str] = None, email: Optional[str] = None) -> dict:
+    """
+    Ensure user exists, create if not
+    Returns user document
+    """
+    user = get_user_by_clerk_id(clerk_id)
+    
+    if not user:
+        # Auto-create user with defaults
+        print(f"🆕 Auto-creating user: {clerk_id}")
+        
+        # Use clerk_id as email if email not provided
+        if not email:
+            if '@' in clerk_id:
+                email = clerk_id
+            else:
+                email = f"{clerk_id}@wander-ease.app"
+        
+        # Use clerk_id as name if name not provided
+        if not name:
+            name = clerk_id.split('@')[0] if '@' in clerk_id else clerk_id
+        
+        try:
+            user = create_user(
+                clerk_id=clerk_id,
+                name=name,
+                email=email,
+                phone=None
+            )
+            print(f"✅ Auto-created user: {clerk_id}")
+        except ValueError as e:
+            # User might have been created by another request
+            print(f"⚠️ Error auto-creating user (might exist): {e}")
+            user = get_user_by_clerk_id(clerk_id)
+            if not user:
+                raise
+    
+    return user
 
 @app.get("/")
 async def root():
     """API root endpoint"""
     return {
         "message": "WanderEase API",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "features": {
             "google_images": "enabled",
             "real_time_search": "enabled",
             "mongodb_caching": "enabled",
-            "user_management": "enabled"
+            "user_management": "enabled",
+            "auto_user_creation": "enabled"
         },
         "endpoints": {
             "tourism": "/api/tourism",
@@ -105,11 +144,7 @@ async def search_tourism(
     location: str = Query(..., description="Location to search (city, area, country)"),
     limit: int = Query(20, ge=1, le=50, description="Maximum results to return")
 ):
-    """
-    Search tourism places by location with real Google images
-    First checks MongoDB, then fetches from OpenStreetMap if needed
-    Images are fetched from Google Custom Search API
-    """
+    """Search tourism places by location with real Google images"""
     try:
         print(f"\n🏛️ Searching tourism places for: {location}")
         places = await get_tourism_places(location, limit)
@@ -130,11 +165,7 @@ async def search_restaurants(
     location: str = Query(..., description="Location to search"),
     limit: int = Query(20, ge=1, le=50, description="Maximum results to return")
 ):
-    """
-    Search restaurants by location with real Google images
-    First checks MongoDB, then fetches from OpenStreetMap if needed
-    Images are fetched from Google Custom Search API
-    """
+    """Search restaurants by location with real Google images"""
     try:
         print(f"\n🍽️ Searching restaurants for: {location}")
         restaurants = await get_restaurants(location, limit)
@@ -155,11 +186,7 @@ async def search_hotels(
     location: str = Query(..., description="Location to search"),
     limit: int = Query(20, ge=1, le=50, description="Maximum results to return")
 ):
-    """
-    Search hotels by location with real Google images
-    First checks MongoDB, then fetches from OpenStreetMap if needed
-    Images are fetched from Google Custom Search API
-    """
+    """Search hotels by location with real Google images"""
     try:
         print(f"\n🏨 Searching hotels for: {location}")
         hotels = await get_hotels(location, limit)
@@ -178,10 +205,10 @@ async def search_hotels(
 @app.get("/api/map")
 async def get_map(
     location: str = Query(..., description="Location for map center"),
-    markers: Optional[str] = Query(None, description="Comma-separated lat,lon pairs (e.g., '22.7196,75.8577,22.7242,75.8652')"),
+    markers: Optional[str] = Query(None, description="Comma-separated lat,lon pairs"),
     show_nearby: Optional[str] = Query(None, description="Show nearby places: tourism, restaurant, hotel, cafe"),
-    nearby_radius: int = Query(1000, ge=100, le=5000, description="Search radius in meters (100-5000)"),
-    nearby_limit: int = Query(20, ge=1, le=50, description="Maximum nearby places to show (1-50)")
+    nearby_radius: int = Query(1000, ge=100, le=5000, description="Search radius in meters"),
+    nearby_limit: int = Query(20, ge=1, le=50, description="Maximum nearby places to show")
 ):
     """Generate interactive OpenStreetMap with markers and nearby places"""
     try:
@@ -231,7 +258,7 @@ async def get_map_html(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-# ============= NEW USER ENDPOINTS =============
+# ============= USER ENDPOINTS WITH AUTO-CREATE =============
 
 @app.post("/api/users")
 async def register_user(user: UserCreate):
@@ -239,7 +266,7 @@ async def register_user(user: UserCreate):
     Register a new user
     
     Required fields:
-    - clerk_id: Unique Clerk authentication ID (primary key)
+    - clerk_id: Unique Clerk authentication ID
     - name: User's full name
     - email: User's email address
     - phone: User's phone number (optional)
@@ -264,18 +291,15 @@ async def register_user(user: UserCreate):
 
 @app.get("/api/users/{clerk_id}")
 async def get_user(clerk_id: str):
-    """Get user profile by Clerk ID"""
+    """Get user profile by Clerk ID (auto-creates if doesn't exist)"""
     try:
-        user = get_user_by_clerk_id(clerk_id)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        # Auto-create user if doesn't exist
+        user = ensure_user_exists(clerk_id)
         
         return {
             "success": True,
             "user": user
         }
-    except HTTPException:
-        raise
     except Exception as e:
         print(f"❌ Get user error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -291,6 +315,9 @@ async def update_user_profile(clerk_id: str, updates: UserUpdate):
     - phone
     """
     try:
+        # Ensure user exists first
+        ensure_user_exists(clerk_id)
+        
         update_data = updates.dict(exclude_unset=True)
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
@@ -336,6 +363,7 @@ async def like_item(
 ):
     """
     Add an item to user's liked list
+    Auto-creates user if doesn't exist
     
     Categories: tourism, restaurants, hotels
     
@@ -352,6 +380,11 @@ async def like_item(
                 detail="Invalid category. Must be tourism, restaurants, or hotels"
             )
         
+        # Auto-create user if doesn't exist
+        print(f"👤 Ensuring user exists: {clerk_id}")
+        ensure_user_exists(clerk_id)
+        
+        # Add liked item
         updated_user = add_liked_item(
             clerk_id=clerk_id,
             category=category,
@@ -360,7 +393,7 @@ async def like_item(
         )
         
         if not updated_user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=500, detail="Failed to add liked item")
         
         return {
             "success": True,
@@ -371,6 +404,8 @@ async def like_item(
         raise
     except Exception as e:
         print(f"❌ Like item error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/users/{clerk_id}/likes/{category}/{item_id}")
@@ -409,14 +444,23 @@ async def get_liked_items(
 ):
     """
     Get all liked items for a user
+    Auto-creates user if doesn't exist
     
     Optional query parameter:
     - category: Filter by specific category (tourism, restaurants, hotels)
     """
     try:
+        # Auto-create user if doesn't exist
+        ensure_user_exists(clerk_id)
+        
         liked_items = get_user_liked_items(clerk_id, category)
         if liked_items is None:
-            raise HTTPException(status_code=404, detail="User not found")
+            # This shouldn't happen after ensure_user_exists, but just in case
+            return {
+                "success": True,
+                "clerk_id": clerk_id,
+                "liked": {"tourism": [], "restaurants": [], "hotels": []}
+            }
         
         return {
             "success": True,
@@ -443,6 +487,18 @@ async def check_if_liked(clerk_id: str, category: str, item_id: str):
                 detail="Invalid category. Must be tourism, restaurants, or hotels"
             )
         
+        # Check if user exists first
+        user = get_user_by_clerk_id(clerk_id)
+        if not user:
+            # User doesn't exist, so item is not liked
+            return {
+                "success": True,
+                "clerk_id": clerk_id,
+                "category": category,
+                "item_id": item_id,
+                "is_liked": False
+            }
+        
         is_liked = is_item_liked(clerk_id, category, item_id)
         
         return {
@@ -460,11 +516,14 @@ async def check_if_liked(clerk_id: str, category: str, item_id: str):
 
 @app.get("/api/users/{clerk_id}/stats")
 async def get_user_statistics(clerk_id: str):
-    """Get user statistics (liked counts, member since, etc.)"""
+    """Get user statistics (auto-creates user if doesn't exist)"""
     try:
+        # Auto-create user if doesn't exist
+        ensure_user_exists(clerk_id)
+        
         stats = get_user_stats(clerk_id)
         if not stats:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=500, detail="Failed to get user stats")
         
         return {
             "success": True,
@@ -481,11 +540,12 @@ async def health_check():
     """Health check endpoint with API status"""
     return {
         "status": "healthy",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "features": {
             "google_images": "enabled",
             "database": "connected",
-            "user_management": "enabled"
+            "user_management": "enabled",
+            "auto_user_creation": "enabled"
         }
     }
 
@@ -499,24 +559,18 @@ if __name__ == "__main__":
     print("   ✅ Fallback to Wikimedia: ENABLED")
     print("\n👤 User Management:")
     print("   ✅ User Registration & Authentication")
+    print("   ✅ AUTO USER CREATION (on first like)")
     print("   ✅ Liked Items (Tourism, Restaurants, Hotels)")
     print("   ✅ User Profile Management")
     print("\n📍 Quick Links:")
     print("   • API Docs: http://127.0.0.1:8000/docs")
     print("   • Health Check: http://127.0.0.1:8000/health")
-    print("   • Interactive Map: http://127.0.0.1:8000/api/map/html?location=Indore")
-    print("\n🔍 Example Searches:")
-    print("   • Tourism: http://127.0.0.1:8000/api/tourism?location=Paris&limit=10")
-    print("   • Restaurants: http://127.0.0.1:8000/api/restaurants?location=Tokyo&limit=10")
-    print("   • Hotels: http://127.0.0.1:8000/api/hotels?location=London&limit=10")
     print("\n👤 User Endpoints:")
-    print("   • Register User: POST /api/users")
+    print("   • Register User: POST /api/users (optional - auto-created)")
     print("   • Get User: GET /api/users/{clerk_id}")
     print("   • Like Item: POST /api/users/{clerk_id}/likes/{category}")
     print("   • Get Likes: GET /api/users/{clerk_id}/likes")
-    print("\n⚠️ API Rate Limits:")
-    print("   • Google Custom Search: 100 queries/day (free tier)")
-    print("   • Tip: Results are cached in MongoDB to reduce API calls")
+    print("\n💡 Note: Users are automatically created on first interaction!")
     print("\n" + "="*60 + "\n")
     
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
