@@ -1,8 +1,8 @@
 fastapi
-uvicorn
-pymongo
-pydantic[email]  # This includes email-validator
+uvicorn[standard]
+pymongo[srv]
+pydantic[email]
 requests
 aiohttp
 python-multipart
-bson
+dnspython
