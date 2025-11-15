@@ -1,10 +1,12 @@
 """
 User management module for WanderEase
 Handles user registration, profile management, and liked items
+Fixed to handle URL-encoded clerk_ids
 """
 
 from typing import Optional, Dict, List
 from datetime import datetime
+from urllib.parse import unquote
 import db as database_module
 from pymongo.errors import DuplicateKeyError
 
@@ -15,6 +17,15 @@ def get_db():
 def serialize_doc(doc):
     """Use the serialize_doc function from db module"""
     return database_module.serialize_doc(doc)
+
+def decode_clerk_id(clerk_id: str) -> str:
+    """
+    Decode URL-encoded clerk_id
+    Handles cases like: 210acaioh%40iadia -> 210acaioh@iadia
+    """
+    decoded = unquote(clerk_id)
+    print(f"🔑 Decoded clerk_id: '{clerk_id}' -> '{decoded}'")
+    return decoded
 
 def create_user(clerk_id: str, name: str, email: str, phone: Optional[str] = None) -> Dict:
     """
@@ -31,6 +42,13 @@ def create_user(clerk_id: str, name: str, email: str, phone: Optional[str] = Non
     """
     db = get_db()
     
+    # Decode clerk_id in case it's URL-encoded
+    clerk_id = decode_clerk_id(clerk_id)
+    
+    # Validate required fields
+    if not clerk_id or not name or not email:
+        raise ValueError("clerk_id, name, and email are required")
+    
     user_doc = {
         "clerk_id": clerk_id,
         "name": name,
@@ -46,17 +64,34 @@ def create_user(clerk_id: str, name: str, email: str, phone: Optional[str] = Non
     }
     
     try:
-        db.users.insert_one(user_doc)
-        print(f"✅ User created: {name} ({clerk_id})")
+        result = db.users.insert_one(user_doc)
+        print(f"✅ User created: {name} (clerk_id: {clerk_id}, MongoDB ID: {result.inserted_id})")
+        
+        # Return the created document
+        user_doc.pop('_id', None)  # Remove MongoDB _id before returning
         return serialize_doc(user_doc)
-    except DuplicateKeyError:
+    except DuplicateKeyError as e:
+        print(f"⚠️ Duplicate key error for clerk_id: {clerk_id}")
         raise ValueError(f"User with clerk_id {clerk_id} already exists")
+    except Exception as e:
+        print(f"❌ Error creating user: {e}")
+        raise
 
 
 def get_user_by_clerk_id(clerk_id: str) -> Optional[Dict]:
-    """Get user by Clerk ID"""
+    """Get user by Clerk ID (handles URL-encoded IDs)"""
     db = get_db()
+    
+    # Decode clerk_id in case it's URL-encoded
+    clerk_id = decode_clerk_id(clerk_id)
+    
     user = db.users.find_one({"clerk_id": clerk_id})
+    
+    if user:
+        print(f"✅ Found user: {clerk_id}")
+    else:
+        print(f"⚠️ User not found: {clerk_id}")
+        
     return serialize_doc(user) if user else None
 
 
@@ -80,6 +115,9 @@ def update_user(clerk_id: str, **updates) -> Optional[Dict]:
     """
     db = get_db()
     
+    # Decode clerk_id in case it's URL-encoded
+    clerk_id = decode_clerk_id(clerk_id)
+    
     allowed_fields = ["name", "email", "phone"]
     update_data = {k: v for k, v in updates.items() if k in allowed_fields}
     
@@ -97,6 +135,8 @@ def update_user(clerk_id: str, **updates) -> Optional[Dict]:
     if result:
         print(f"✅ User updated: {clerk_id}")
         return serialize_doc(result)
+    
+    print(f"⚠️ User not found for update: {clerk_id}")
     return None
 
 
@@ -114,6 +154,9 @@ def add_liked_item(clerk_id: str, category: str, item_id: str, item_data: Dict) 
         Updated user document
     """
     db = get_db()
+    
+    # Decode clerk_id in case it's URL-encoded
+    clerk_id = decode_clerk_id(clerk_id)
     
     if category not in ["tourism", "restaurants", "hotels"]:
         raise ValueError("Invalid category. Must be tourism, restaurants, or hotels")
@@ -134,7 +177,7 @@ def add_liked_item(clerk_id: str, category: str, item_id: str, item_data: Dict) 
     })
     
     if user:
-        print(f"⚠️ Item {item_id} already liked by user {clerk_id}")
+        print(f"⚠️ Item {item_id} already liked by user {clerk_id} in category {category}")
         return serialize_doc(user)
     
     # Add to liked list
@@ -148,8 +191,10 @@ def add_liked_item(clerk_id: str, category: str, item_id: str, item_data: Dict) 
     )
     
     if result:
-        print(f"💚 Item {item_id} added to {category} likes for user {clerk_id}")
+        print(f"💚 Item '{liked_item.get('name', item_id)}' added to {category} likes for user {clerk_id}")
         return serialize_doc(result)
+    
+    print(f"⚠️ User not found when adding like: {clerk_id}")
     return None
 
 
@@ -167,6 +212,9 @@ def remove_liked_item(clerk_id: str, category: str, item_id: str) -> Optional[Di
     """
     db = get_db()
     
+    # Decode clerk_id in case it's URL-encoded
+    clerk_id = decode_clerk_id(clerk_id)
+    
     if category not in ["tourism", "restaurants", "hotels"]:
         raise ValueError("Invalid category. Must be tourism, restaurants, or hotels")
     
@@ -182,10 +230,12 @@ def remove_liked_item(clerk_id: str, category: str, item_id: str) -> Optional[Di
     if result:
         print(f"💔 Item {item_id} removed from {category} likes for user {clerk_id}")
         return serialize_doc(result)
+    
+    print(f"⚠️ User not found when removing like: {clerk_id}")
     return None
 
 
-def get_user_liked_items(clerk_id: str, category: Optional[str] = None) -> Dict:
+def get_user_liked_items(clerk_id: str, category: Optional[str] = None) -> Optional[Dict]:
     """
     Get all liked items for a user
     
@@ -194,13 +244,17 @@ def get_user_liked_items(clerk_id: str, category: Optional[str] = None) -> Dict:
         category: Optional category filter (tourism, restaurants, hotels)
     
     Returns:
-        Dictionary with liked items
+        Dictionary with liked items or None if user not found
     """
     db = get_db()
+    
+    # Decode clerk_id in case it's URL-encoded
+    clerk_id = decode_clerk_id(clerk_id)
     
     user = db.users.find_one({"clerk_id": clerk_id})
     
     if not user:
+        print(f"⚠️ User not found when fetching likes: {clerk_id}")
         return None
     
     liked_items = serialize_doc(user.get("liked", {}))
@@ -210,6 +264,7 @@ def get_user_liked_items(clerk_id: str, category: Optional[str] = None) -> Dict:
             raise ValueError("Invalid category")
         return {category: liked_items.get(category, [])}
     
+    print(f"✅ Retrieved liked items for user: {clerk_id}")
     return liked_items
 
 
@@ -227,12 +282,18 @@ def is_item_liked(clerk_id: str, category: str, item_id: str) -> bool:
     """
     db = get_db()
     
+    # Decode clerk_id in case it's URL-encoded
+    clerk_id = decode_clerk_id(clerk_id)
+    
     user = db.users.find_one({
         "clerk_id": clerk_id,
         f"liked.{category}.item_id": item_id
     })
     
-    return user is not None
+    is_liked = user is not None
+    print(f"🔍 Check if liked - User: {clerk_id}, Category: {category}, Item: {item_id} = {is_liked}")
+    
+    return is_liked
 
 
 def get_user_stats(clerk_id: str) -> Optional[Dict]:
@@ -243,18 +304,22 @@ def get_user_stats(clerk_id: str) -> Optional[Dict]:
         clerk_id: User's Clerk ID
     
     Returns:
-        Dictionary with user stats
+        Dictionary with user stats or None if user not found
     """
     db = get_db()
+    
+    # Decode clerk_id in case it's URL-encoded
+    clerk_id = decode_clerk_id(clerk_id)
     
     user = db.users.find_one({"clerk_id": clerk_id})
     
     if not user:
+        print(f"⚠️ User not found when fetching stats: {clerk_id}")
         return None
     
     liked = user.get("liked", {})
     
-    return {
+    stats = {
         "clerk_id": clerk_id,
         "name": user.get("name"),
         "email": user.get("email"),
@@ -270,6 +335,9 @@ def get_user_stats(clerk_id: str) -> Optional[Dict]:
         },
         "member_since": user.get("created_at")
     }
+    
+    print(f"✅ Retrieved stats for user: {clerk_id}")
+    return stats
 
 
 def delete_user(clerk_id: str) -> bool:
@@ -284,9 +352,14 @@ def delete_user(clerk_id: str) -> bool:
     """
     db = get_db()
     
+    # Decode clerk_id in case it's URL-encoded
+    clerk_id = decode_clerk_id(clerk_id)
+    
     result = db.users.delete_one({"clerk_id": clerk_id})
     
     if result.deleted_count > 0:
         print(f"🗑️ User deleted: {clerk_id}")
         return True
+    
+    print(f"⚠️ User not found for deletion: {clerk_id}")
     return False
