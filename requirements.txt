@@ -1,5 +1,7 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pymongo==4.6.0
-requests==2.31.0
-aiohttp==3.9.1
+fastapi
+uvicorn
+pymongo
+pydantic[email]  # This includes email-validator
+requests
+aiohttp
+python-multipart
