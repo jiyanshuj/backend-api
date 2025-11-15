@@ -415,16 +415,6 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
     `);
     """
     
-    # JavaScript location name (truncated for display)
-    js_location_name = location_name.replace("'", "&#39;").replace('"', '&quot;')
-    display_location = js_location_name[:50] + ('...' if len(js_location_name) > 50 else '')
-    
-    # Marker statistics
-    marker_stats = ""
-    for marker_type, type_markers in markers_by_type.items():
-        style = marker_styles.get(marker_type, marker_styles['custom'])
-        marker_stats += f'<span style="background: {style["color"]}; color: white; padding: 4px 10px; border-radius: 6px; margin: 4px; display: inline-block; font-size: 0.85rem;">{style["icon"]} {marker_type.title()}: {len(type_markers)}</span>'
-    
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -448,45 +438,6 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
             width: 100%;
             height: 100vh;
             background: #f0f0f0;
-        }}
-        .map-controls {{
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            max-width: 340px;
-            backdrop-filter: blur(10px);
-            max-height: 90vh;
-            overflow-y: auto;
-        }}
-        .map-controls h3 {{
-            margin-bottom: 15px;
-            color: #667eea;
-            font-size: 1.3rem;
-            font-weight: 700;
-        }}
-        .map-controls p {{
-            margin: 8px 0;
-            font-size: 0.95rem;
-            color: #555;
-            line-height: 1.5;
-        }}
-        .map-controls strong {{
-            color: #333;
-        }}
-        .marker-legend {{
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 2px solid #f0f0f0;
-        }}
-        .marker-legend h4 {{
-            font-size: 1rem;
-            color: #667eea;
-            margin-bottom: 10px;
         }}
         .leaflet-popup-content {{
             font-size: 14px;
@@ -525,13 +476,6 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
         .attribution a:hover {{
             text-decoration: underline;
         }}
-        .info-section {{
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 2px solid #f0f0f0;
-            font-size: 0.85rem;
-            color: #888;
-        }}
         @keyframes pulse {{
             0%, 100% {{ transform: scale(1); }}
             50% {{ transform: scale(1.1); }}
@@ -539,27 +483,6 @@ def generate_leaflet_map(lat: float, lon: float, location_name: str,
     </style>
 </head>
 <body>
-    <div class="map-controls">
-        <h3>🗺️ Location Details</h3>
-        <p><strong>Location:</strong><br>{display_location}</p>
-        <p><strong>Data Source:</strong> Geoapify</p>
-        <p><strong>Coordinates:</strong><br>Lat: {lat:.6f}<br>Lon: {lon:.6f}</p>
-        <p><strong>Total Markers:</strong> {len(markers) + 1}</p>
-        
-        {"<p><strong>Showing Nearby:</strong> " + show_nearby.title() + "</p>" if show_nearby else ""}
-        
-        <div class="marker-legend">
-            <h4>📍 Marker Types</h4>
-            {marker_stats}
-        </div>
-        
-        <div class="info-section">
-            🔍 Scroll to zoom<br>
-            🖱️ Drag to pan<br>
-            📍 Click markers for details
-        </div>
-    </div>
-    
     <div id="map"></div>
     
     <div class="zoom-info">
