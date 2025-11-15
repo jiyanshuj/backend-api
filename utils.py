@@ -17,38 +17,36 @@ GEMINI_API_KEY = "AIzaSyDW4lWmREnqeVcHXrpfogMRMRcUNHCjZd4"
 
 def get_location_coordinates(query: str) -> Optional[Dict]:
     """
-    Get location coordinates from query using Nominatim (OpenStreetMap)
-    Free and no API key required
+    Get location coordinates using LocationIQ (more reliable than Nominatim)
     """
     try:
-        url = "https://nominatim.openstreetmap.org/search"
+        url = "https://us1.locationiq.com/v1/search"
         params = {
+            'key': 'pk.aa244b676b5add11553e0e269d464ba9',
             'q': query,
             'format': 'json',
             'limit': 1
         }
-        headers = {
-            'User-Agent': 'WanderEase/1.0 (wanderease@example.com)'
-        }
         
-        # Rate limiting - be nice to Nominatim
-        time.sleep(1)
-        
-        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
         
         if not data:
+            print(f"No location found for: {query}")
             return None
         
-        return {
+        location_info = {
             'lat': float(data[0]['lat']),
             'lon': float(data[0]['lon']),
             'name': data[0]['display_name']
         }
         
+        print(f"✅ Found location: {location_info['name']}")
+        return location_info
+        
     except Exception as e:
-        print(f"Error getting location: {str(e)}")
+        print(f"❌ Error getting location: {str(e)}")
         return None
 
 async def fetch_google_image(place_name: str, location_context: str = "") -> str:
