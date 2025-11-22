@@ -1,7 +1,6 @@
 """
 Database module for MongoDB operations
-Collections: tourism, restaurants, hotels, users
-Fixed for MongoDB Atlas Cloud Connection
+Collections: tourism, restaurants, hotels, users, activities, connections
 """
 
 from pymongo import MongoClient, GEOSPHERE
@@ -11,7 +10,6 @@ import os
 from datetime import datetime
 from bson import ObjectId
 
-# MongoDB Atlas connection
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://jiyan:Jiyu5678@cluster0.h2c3adp.mongodb.net/")
 DB_NAME = "wander_ease"
 
@@ -23,7 +21,6 @@ def init_db():
     global client, db
     
     try:
-        # Connect to MongoDB Atlas with proper configuration
         client = MongoClient(
             MONGO_URI,
             serverSelectionTimeoutMS=5000,
@@ -32,15 +29,12 @@ def init_db():
             retryWrites=True,
             w='majority'
         )
-        
-        # Test the connection
         client.admin.command('ping')
         print("✅ Successfully connected to MongoDB Atlas!")
         
         db = client[DB_NAME]
         print(f"✅ Using database: {DB_NAME}")
         
-        # List existing collections
         existing_collections = db.list_collection_names()
         print(f"📁 Existing collections: {existing_collections}")
         
@@ -51,47 +45,26 @@ def init_db():
         print(f"❌ Database initialization error: {e}")
         raise
     
-    # Create geospatial indexes for location-based queries
+    # ===== GEOSPATIAL INDEXES =====
     print("\n🔧 Setting up geospatial indexes...")
-    try:
-        db.tourism.create_index([("location", GEOSPHERE)])
-        print("✅ Tourism geospatial index created")
-    except Exception as e:
-        print(f"⚠️ Tourism geospatial index: {e}")
+    for coll in ['tourism', 'restaurants', 'hotels']:
+        try:
+            db[coll].create_index([("location", GEOSPHERE)])
+            print(f"✅ {coll.capitalize()} geospatial index created")
+        except Exception as e:
+            print(f"⚠️ {coll} geospatial index: {e}")
     
-    try:
-        db.restaurants.create_index([("location", GEOSPHERE)])
-        print("✅ Restaurants geospatial index created")
-    except Exception as e:
-        print(f"⚠️ Restaurants geospatial index: {e}")
-    
-    try:
-        db.hotels.create_index([("location", GEOSPHERE)])
-        print("✅ Hotels geospatial index created")
-    except Exception as e:
-        print(f"⚠️ Hotels geospatial index: {e}")
-    
-    # Create unique indexes on place_id/restaurant_id/hotel_id
+    # ===== UNIQUE ID INDEXES =====
     print("\n🔧 Setting up unique ID indexes...")
     try:
         db.tourism.create_index("place_id", unique=True)
-        print("✅ Tourism place_id index created")
-    except Exception as e:
-        print(f"⚠️ Tourism place_id index: {e}")
-    
-    try:
         db.restaurants.create_index("restaurant_id", unique=True)
-        print("✅ Restaurants restaurant_id index created")
-    except Exception as e:
-        print(f"⚠️ Restaurants restaurant_id index: {e}")
-    
-    try:
         db.hotels.create_index("hotel_id", unique=True)
-        print("✅ Hotels hotel_id index created")
+        print("✅ Unique ID indexes created")
     except Exception as e:
-        print(f"⚠️ Hotels hotel_id index: {e}")
+        print(f"⚠️ Unique ID indexes: {e}")
     
-    # Index on location_query for text search
+    # ===== LOCATION QUERY INDEXES =====
     print("\n🔧 Setting up location query indexes...")
     try:
         db.tourism.create_index("location_query")
@@ -101,72 +74,77 @@ def init_db():
     except Exception as e:
         print(f"⚠️ Location query indexes: {e}")
     
-    # ===== USERS COLLECTION SETUP =====
+    # ===== USERS COLLECTION =====
     print("\n👤 Setting up users collection...")
-    
-    # Clean up invalid users
     try:
-        null_clerk_count = db.users.count_documents({"clerk_id": None})
-        if null_clerk_count > 0:
-            print(f"⚠️ Found {null_clerk_count} users with null clerk_id. Cleaning up...")
-            result = db.users.delete_many({"clerk_id": None})
-            print(f"✅ Removed {result.deleted_count} invalid user documents")
-        
-        empty_clerk_count = db.users.count_documents({"clerk_id": ""})
-        if empty_clerk_count > 0:
-            print(f"⚠️ Found {empty_clerk_count} users with empty clerk_id. Cleaning up...")
-            result = db.users.delete_many({"clerk_id": ""})
-            print(f"✅ Removed {result.deleted_count} invalid user documents")
+        db.users.delete_many({"clerk_id": None})
+        db.users.delete_many({"clerk_id": ""})
     except Exception as e:
-        print(f"⚠️ Error checking for invalid users: {e}")
+        print(f"⚠️ Error cleaning invalid users: {e}")
     
-    # Create indexes for users collection
     try:
         db.users.create_index("clerk_id", unique=True, sparse=True)
-        print("✅ Users clerk_id index created")
-    except Exception as e:
-        print(f"⚠️ Users clerk_id index: {e}")
-    
-    try:
         db.users.create_index("email", unique=True, sparse=True)
-        print("✅ Users email index created")
-    except Exception as e:
-        print(f"⚠️ Users email index: {e}")
-    
-    # Index on liked items for faster queries
-    try:
         db.users.create_index("liked.tourism.item_id")
         db.users.create_index("liked.restaurants.item_id")
         db.users.create_index("liked.hotels.item_id")
-        print("✅ Users liked items indexes created")
+        print("✅ Users indexes created")
     except Exception as e:
-        print(f"⚠️ Users liked items indexes: {e}")
+        print(f"⚠️ Users indexes: {e}")
     
-    # Display current collection stats
+    # ===== ACTIVITIES COLLECTION =====
+    print("\n🎯 Setting up activities collection...")
+    try:
+        db.activities.create_index([("location", GEOSPHERE)])
+        db.activities.create_index("clerk_id")
+        db.activities.create_index("activity_type")
+        db.activities.create_index("status")
+        db.activities.create_index("scheduled_time")
+        db.activities.create_index("expires_at")
+        db.activities.create_index([
+            ("activity_type", 1), ("status", 1), 
+            ("is_public", 1), ("scheduled_time", 1)
+        ])
+        print("✅ Activities indexes created")
+    except Exception as e:
+        print(f"⚠️ Activities indexes: {e}")
+    
+    # ===== CONNECTIONS COLLECTION =====
+    print("\n💬 Setting up connections collection...")
+    try:
+        db.connections.create_index("from_clerk_id")
+        db.connections.create_index("to_clerk_id")
+        db.connections.create_index("activity_id")
+        db.connections.create_index("status")
+        db.connections.create_index([
+            ("from_clerk_id", 1), ("to_clerk_id", 1), ("activity_id", 1)
+        ], unique=True)
+        print("✅ Connections indexes created")
+    except Exception as e:
+        print(f"⚠️ Connections indexes: {e}")
+    
+    # ===== COLLECTION STATS =====
     print("\n📊 Collection Statistics:")
     try:
-        for collection_name in ['tourism', 'restaurants', 'hotels', 'users']:
-            count = db[collection_name].count_documents({})
-            print(f"   • {collection_name}: {count} documents")
+        for coll in ['tourism', 'restaurants', 'hotels', 'users', 'activities', 'connections']:
+            count = db[coll].count_documents({})
+            print(f"   • {coll}: {count} documents")
     except Exception as e:
-        print(f"⚠️ Error getting collection stats: {e}")
+        print(f"⚠️ Error getting stats: {e}")
     
     print("\n✅ Database initialization complete!")
     print("="*60)
 
 def close_db():
-    """Close MongoDB connection"""
     global client
     if client:
         client.close()
         print("✅ Database connection closed")
 
 def normalize_location_query(location: str) -> str:
-    """Normalize location string for consistent querying"""
     return location.lower().strip()
 
 def serialize_doc(doc):
-    """Convert MongoDB document to JSON-serializable dict"""
     if doc is None:
         return None
     if isinstance(doc, list):
@@ -175,7 +153,7 @@ def serialize_doc(doc):
         result = {}
         for key, value in doc.items():
             if key == '_id':
-                continue  # Skip MongoDB _id field
+                result['id'] = str(value)
             elif isinstance(value, ObjectId):
                 result[key] = str(value)
             elif isinstance(value, datetime):
@@ -183,219 +161,113 @@ def serialize_doc(doc):
             elif isinstance(value, dict):
                 result[key] = serialize_doc(value)
             elif isinstance(value, list):
-                result[key] = [serialize_doc(item) if isinstance(item, dict) else item for item in value]
+                result[key] = [serialize_doc(i) if isinstance(i, dict) else i for i in value]
             else:
                 result[key] = value
         return result
     return doc
 
-# Tourism Places Operations
+# ===== TOURISM OPERATIONS =====
 def get_tourism_from_db(location: str, limit: int = 20) -> List[Dict]:
-    """Get tourism places from MongoDB by location"""
     try:
-        normalized_location = normalize_location_query(location)
-        
-        places = list(db.tourism.find(
-            {"location_query": normalized_location}
-        ).limit(limit))
-        
-        print(f"📍 Found {len(places)} tourism places for '{location}' in database")
-        return [serialize_doc(place) for place in places]
+        places = list(db.tourism.find({"location_query": normalize_location_query(location)}).limit(limit))
+        print(f"📍 Found {len(places)} tourism places for '{location}'")
+        return [serialize_doc(p) for p in places]
     except Exception as e:
-        print(f"❌ Error fetching tourism from DB: {e}")
+        print(f"❌ Error fetching tourism: {e}")
         return []
 
 def save_tourism_to_db(places: List[Dict], location: str):
-    """Save tourism places to MongoDB Atlas"""
     try:
-        normalized_location = normalize_location_query(location)
-        saved_count = 0
-        updated_count = 0
-        
+        norm_loc = normalize_location_query(location)
         for place in places:
-            place["location_query"] = normalized_location
+            place["location_query"] = norm_loc
             place["created_at"] = datetime.utcnow()
             place["updated_at"] = datetime.utcnow()
-            
             try:
-                result = db.tourism.insert_one(place.copy())
-                saved_count += 1
-                print(f"✅ Saved tourism place: {place.get('name', 'Unknown')} (ID: {result.inserted_id})")
+                db.tourism.insert_one(place.copy())
             except DuplicateKeyError:
-                # Update existing record
-                place_copy = place.copy()
-                place_copy.pop('_id', None)
-                result = db.tourism.update_one(
-                    {"place_id": place["place_id"]},
-                    {"$set": {**place_copy, "updated_at": datetime.utcnow()}}
-                )
-                updated_count += 1
-                print(f"🔄 Updated tourism place: {place.get('name', 'Unknown')}")
-            except Exception as e:
-                print(f"❌ Error saving tourism place {place.get('name', 'Unknown')}: {e}")
-        
-        print(f"💾 Tourism saved: {saved_count} new, {updated_count} updated for '{location}'")
+                place.pop('_id', None)
+                db.tourism.update_one({"place_id": place["place_id"]}, {"$set": place})
     except Exception as e:
-        print(f"❌ Error in save_tourism_to_db: {e}")
+        print(f"❌ Error saving tourism: {e}")
 
 def search_tourism_nearby(lat: float, lon: float, radius_km: float = 5, limit: int = 20) -> List[Dict]:
-    """Search tourism places within radius (in kilometers)"""
     try:
-        places = list(db.tourism.find(
-            {
-                "location": {
-                    "$near": {
-                        "$geometry": {
-                            "type": "Point",
-                            "coordinates": [lon, lat]
-                        },
-                        "$maxDistance": radius_km * 1000  # Convert to meters
-                    }
-                }
-            }
-        ).limit(limit))
-        
-        return [serialize_doc(place) for place in places]
+        places = list(db.tourism.find({
+            "location": {"$near": {"$geometry": {"type": "Point", "coordinates": [lon, lat]}, "$maxDistance": radius_km * 1000}}
+        }).limit(limit))
+        return [serialize_doc(p) for p in places]
     except Exception as e:
         print(f"❌ Error in nearby tourism search: {e}")
         return []
 
-# Restaurant Operations
+# ===== RESTAURANT OPERATIONS =====
 def get_restaurants_from_db(location: str, limit: int = 20) -> List[Dict]:
-    """Get restaurants from MongoDB by location"""
     try:
-        normalized_location = normalize_location_query(location)
-        
-        restaurants = list(db.restaurants.find(
-            {"location_query": normalized_location}
-        ).limit(limit))
-        
-        print(f"🍽️ Found {len(restaurants)} restaurants for '{location}' in database")
-        return [serialize_doc(restaurant) for restaurant in restaurants]
+        restaurants = list(db.restaurants.find({"location_query": normalize_location_query(location)}).limit(limit))
+        print(f"🍽️ Found {len(restaurants)} restaurants for '{location}'")
+        return [serialize_doc(r) for r in restaurants]
     except Exception as e:
-        print(f"❌ Error fetching restaurants from DB: {e}")
+        print(f"❌ Error fetching restaurants: {e}")
         return []
 
 def save_restaurants_to_db(restaurants: List[Dict], location: str):
-    """Save restaurants to MongoDB Atlas"""
     try:
-        normalized_location = normalize_location_query(location)
-        saved_count = 0
-        updated_count = 0
-        
-        for restaurant in restaurants:
-            restaurant["location_query"] = normalized_location
-            restaurant["created_at"] = datetime.utcnow()
-            restaurant["updated_at"] = datetime.utcnow()
-            
+        norm_loc = normalize_location_query(location)
+        for rest in restaurants:
+            rest["location_query"] = norm_loc
+            rest["created_at"] = datetime.utcnow()
+            rest["updated_at"] = datetime.utcnow()
             try:
-                result = db.restaurants.insert_one(restaurant.copy())
-                saved_count += 1
-                print(f"✅ Saved restaurant: {restaurant.get('name', 'Unknown')} (ID: {result.inserted_id})")
+                db.restaurants.insert_one(rest.copy())
             except DuplicateKeyError:
-                restaurant_copy = restaurant.copy()
-                restaurant_copy.pop('_id', None)
-                result = db.restaurants.update_one(
-                    {"restaurant_id": restaurant["restaurant_id"]},
-                    {"$set": {**restaurant_copy, "updated_at": datetime.utcnow()}}
-                )
-                updated_count += 1
-                print(f"🔄 Updated restaurant: {restaurant.get('name', 'Unknown')}")
-            except Exception as e:
-                print(f"❌ Error saving restaurant {restaurant.get('name', 'Unknown')}: {e}")
-        
-        print(f"💾 Restaurants saved: {saved_count} new, {updated_count} updated for '{location}'")
+                rest.pop('_id', None)
+                db.restaurants.update_one({"restaurant_id": rest["restaurant_id"]}, {"$set": rest})
     except Exception as e:
-        print(f"❌ Error in save_restaurants_to_db: {e}")
+        print(f"❌ Error saving restaurants: {e}")
 
 def search_restaurants_nearby(lat: float, lon: float, radius_km: float = 5, limit: int = 20) -> List[Dict]:
-    """Search restaurants within radius"""
     try:
-        restaurants = list(db.restaurants.find(
-            {
-                "location": {
-                    "$near": {
-                        "$geometry": {
-                            "type": "Point",
-                            "coordinates": [lon, lat]
-                        },
-                        "$maxDistance": radius_km * 1000
-                    }
-                }
-            }
-        ).limit(limit))
-        
-        return [serialize_doc(restaurant) for restaurant in restaurants]
+        restaurants = list(db.restaurants.find({
+            "location": {"$near": {"$geometry": {"type": "Point", "coordinates": [lon, lat]}, "$maxDistance": radius_km * 1000}}
+        }).limit(limit))
+        return [serialize_doc(r) for r in restaurants]
     except Exception as e:
         print(f"❌ Error in nearby restaurants search: {e}")
         return []
 
-# Hotel Operations
+# ===== HOTEL OPERATIONS =====
 def get_hotels_from_db(location: str, limit: int = 20) -> List[Dict]:
-    """Get hotels from MongoDB by location"""
     try:
-        normalized_location = normalize_location_query(location)
-        
-        hotels = list(db.hotels.find(
-            {"location_query": normalized_location}
-        ).limit(limit))
-        
-        print(f"🏨 Found {len(hotels)} hotels for '{location}' in database")
-        return [serialize_doc(hotel) for hotel in hotels]
+        hotels = list(db.hotels.find({"location_query": normalize_location_query(location)}).limit(limit))
+        print(f"🏨 Found {len(hotels)} hotels for '{location}'")
+        return [serialize_doc(h) for h in hotels]
     except Exception as e:
-        print(f"❌ Error fetching hotels from DB: {e}")
+        print(f"❌ Error fetching hotels: {e}")
         return []
 
 def save_hotels_to_db(hotels: List[Dict], location: str):
-    """Save hotels to MongoDB Atlas"""
     try:
-        normalized_location = normalize_location_query(location)
-        saved_count = 0
-        updated_count = 0
-        
+        norm_loc = normalize_location_query(location)
         for hotel in hotels:
-            hotel["location_query"] = normalized_location
+            hotel["location_query"] = norm_loc
             hotel["created_at"] = datetime.utcnow()
             hotel["updated_at"] = datetime.utcnow()
-            
             try:
-                result = db.hotels.insert_one(hotel.copy())
-                saved_count += 1
-                print(f"✅ Saved hotel: {hotel.get('name', 'Unknown')} (ID: {result.inserted_id})")
+                db.hotels.insert_one(hotel.copy())
             except DuplicateKeyError:
-                hotel_copy = hotel.copy()
-                hotel_copy.pop('_id', None)
-                result = db.hotels.update_one(
-                    {"hotel_id": hotel["hotel_id"]},
-                    {"$set": {**hotel_copy, "updated_at": datetime.utcnow()}}
-                )
-                updated_count += 1
-                print(f"🔄 Updated hotel: {hotel.get('name', 'Unknown')}")
-            except Exception as e:
-                print(f"❌ Error saving hotel {hotel.get('name', 'Unknown')}: {e}")
-        
-        print(f"💾 Hotels saved: {saved_count} new, {updated_count} updated for '{location}'")
+                hotel.pop('_id', None)
+                db.hotels.update_one({"hotel_id": hotel["hotel_id"]}, {"$set": hotel})
     except Exception as e:
-        print(f"❌ Error in save_hotels_to_db: {e}")
+        print(f"❌ Error saving hotels: {e}")
 
 def search_hotels_nearby(lat: float, lon: float, radius_km: float = 5, limit: int = 20) -> List[Dict]:
-    """Search hotels within radius"""
     try:
-        hotels = list(db.hotels.find(
-            {
-                "location": {
-                    "$near": {
-                        "$geometry": {
-                            "type": "Point",
-                            "coordinates": [lon, lat]
-                        },
-                        "$maxDistance": radius_km * 1000
-                    }
-                }
-            }
-        ).limit(limit))
-        
-        return [serialize_doc(hotel) for hotel in hotels]
+        hotels = list(db.hotels.find({
+            "location": {"$near": {"$geometry": {"type": "Point", "coordinates": [lon, lat]}, "$maxDistance": radius_km * 1000}}
+        }).limit(limit))
+        return [serialize_doc(h) for h in hotels]
     except Exception as e:
         print(f"❌ Error in nearby hotels search: {e}")
         return []

@@ -3,1485 +3,685 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WanderEase - Complete Explorer with User Management</title>
+    <title>WanderEase - Discover & Connect</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-        }
-
-        /* User Panel Styles */
-        .user-panel {
-            background: white;
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .user-avatar {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 2rem;
-            font-weight: 700;
-        }
-
-        .user-details h3 {
-            color: #333;
-            font-size: 1.3rem;
-            margin-bottom: 5px;
-        }
-
-        .user-details p {
-            color: #666;
-            font-size: 0.95rem;
-        }
-
-        .user-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .user-btn {
-            padding: 12px 25px;
-            border-radius: 10px;
-            border: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 0.95rem;
-        }
-
-        .user-btn.primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .user-btn.secondary {
-            background: #f0f0f0;
-            color: #333;
-        }
-
-        .user-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .login-section {
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            margin-bottom: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            text-align: center;
-        }
-
-        .login-section h2 {
-            color: #667eea;
-            margin-bottom: 20px;
-            font-size: 2rem;
-        }
-
-        .login-form {
-            max-width: 500px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .login-form input {
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 1rem;
-        }
-
-        .login-form input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .login-form button {
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        /* Heart/Like Button */
-        .like-btn {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            width: 45px;
-            height: 45px;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 1.5rem;
-            transition: all 0.3s;
-            z-index: 10;
-            border: none;
-        }
-
-        .like-btn:hover {
-            transform: scale(1.1);
-        }
-
-        .like-btn.liked {
-            background: #ff4757;
-            color: white;
-        }
-
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-            animation: fadeIn 0.6s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .header h1 {
-            font-size: 3.5rem;
-            margin-bottom: 15px;
-            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3);
-        }
-
-        .header .subtitle {
-            font-size: 1.3rem;
-            opacity: 0.95;
-            margin-bottom: 20px;
-        }
-
-        .badges {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            flex-wrap: wrap;
-            margin-top: 15px;
-        }
-
-        .badge {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 10px 25px;
-            border-radius: 25px;
-            backdrop-filter: blur(10px);
-            font-size: 1rem;
-            font-weight: 600;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-        }
-
-        .search-section {
-            background: white;
-            border-radius: 20px;
-            padding: 35px;
-            margin-bottom: 30px;
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
-            animation: slideUp 0.6s ease-out;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .search-section h2 {
-            color: #667eea;
-            margin-bottom: 25px;
-            font-size: 2rem;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .category-tabs {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-
-        .category-tab {
-            padding: 20px;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-            border: 3px solid transparent;
-            border-radius: 15px;
-            cursor: pointer;
-            font-size: 1.1rem;
-            font-weight: 700;
-            text-align: center;
-            transition: all 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .category-tab::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            transition: left 0.3s;
-            z-index: 0;
-        }
-
-        .category-tab span {
-            position: relative;
-            z-index: 1;
-        }
-
-        .category-tab.active::before {
-            left: 0;
-        }
-
-        .category-tab.active {
-            color: white;
-            border-color: #667eea;
-            transform: scale(1.05);
-        }
-
-        .category-tab:hover {
-            transform: scale(1.03);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .search-controls {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            align-items: end;
-        }
-
-        .input-group {
-            flex: 1;
-            min-width: 200px;
-        }
-
-        .input-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-weight: 600;
-            font-size: 0.95rem;
-        }
-
-        .input-group input,
-        .input-group select {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 1rem;
-            transition: all 0.3s;
-        }
-
-        .input-group input:focus,
-        .input-group select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .search-btn {
-            padding: 15px 50px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
-        }
-
-        .search-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-        }
-
-        .search-btn:active {
-            transform: translateY(-1px);
-        }
-
-        .map-controls {
-            display: none;
-        }
-
-        .map-controls.active {
-            display: block;
-        }
-
-        .loading {
-            text-align: center;
-            color: white;
-            font-size: 1.5rem;
-            padding: 50px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            margin: 20px 0;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .stats-panel {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
-            text-align: center;
-        }
-
-        .stats-panel h3 {
-            color: #667eea;
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-        }
-
-        .stats-panel .subtitle {
-            color: #666;
-            font-size: 1.1rem;
-        }
-
-        .map-result {
-            background: white;
-            border-radius: 20px;
-            padding: 35px;
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
-        }
-
-        .map-result h3 {
-            color: #667eea;
-            font-size: 2rem;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .map-actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .map-btn {
-            padding: 18px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .map-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
-        }
-
-        .map-btn.secondary {
-            background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
-        }
-
-        .map-btn.danger {
-            background: linear-gradient(135deg, #E91E63 0%, #C2185B 100%);
-        }
-
-        .map-info {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            border-left: 5px solid #667eea;
-        }
-
-        .map-info p {
-            margin: 8px 0;
-            color: #555;
-            line-height: 1.6;
-        }
-
-        .results-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-            gap: 30px;
-            margin-top: 30px;
-        }
-
-        .result-card {
-            background: white;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            animation: cardAppear 0.5s ease-out;
-            position: relative;
-        }
-
-        @keyframes cardAppear {
-            from {
-                opacity: 0;
-                transform: scale(0.9) translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-        }
-
-        .result-card:hover {
-            transform: translateY(-10px) scale(1.02);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-        }
-
-        .card-image-container {
-            position: relative;
-            width: 100%;
-            height: 280px;
-            overflow: hidden;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        .card-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: transform 0.5s;
-        }
-
-        .result-card:hover .card-image {
-            transform: scale(1.1);
-        }
-
-        .card-badge {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-weight: 700;
-            font-size: 0.9rem;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .card-content {
-            padding: 25px;
-        }
-
-        .card-title {
-            font-size: 1.5rem;
-            color: #333;
-            font-weight: 800;
-            margin-bottom: 12px;
-            line-height: 1.3;
-        }
-
-        .card-type {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 6px 15px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
-
-        .card-rating {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
-            font-size: 1rem;
-        }
-
-        .rating-stars {
-            background: #4CAF50;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-weight: 700;
-        }
-
-        .card-price {
-            font-size: 2rem;
-            color: #667eea;
-            font-weight: 800;
-            margin: 15px 0;
-        }
-
-        .card-info {
-            color: #666;
-            font-size: 0.95rem;
-            line-height: 1.8;
-            margin-bottom: 15px;
-        }
-
-        .no-results {
-            text-align: center;
-            color: white;
-            font-size: 1.8rem;
-            padding: 80px 20px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-        }
-
-        .no-results-icon {
-            font-size: 5rem;
-            margin-bottom: 20px;
-        }
-
-        @media (max-width: 768px) {
-            .header h1 {
-                font-size: 2.5rem;
-            }
-
-            .results-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .category-tabs {
-                grid-template-columns: 1fr;
-            }
-
-            .search-controls {
-                flex-direction: column;
-            }
-
-            .input-group {
-                min-width: 100%;
-            }
-
-            .search-btn {
-                width: 100%;
-            }
-
-            .map-actions {
-                grid-template-columns: 1fr;
-            }
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #6366f1; --primary-dark: #4f46e5; --secondary: #8b5cf6;
+            --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+            --dark: #1f2937; --gray: #6b7280; --light: #f3f4f6; --white: #fff;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--light); min-height: 100vh; }
+        
+        .header { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 12px 15px; position: sticky; top: 0; z-index: 100; }
+        .header-row { display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 1.3rem; }
+        .header p { font-size: 0.75rem; opacity: 0.9; }
+        .loc-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; }
+        .user-row { display: flex; gap: 8px; margin-top: 10px; }
+        .user-row input { flex: 1; padding: 9px 12px; border: none; border-radius: 8px; font-size: 0.85rem; }
+        .user-row button { background: white; color: var(--primary); border: none; padding: 9px 15px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+        
+        .tabs { display: flex; background: white; margin: 10px; border-radius: 10px; padding: 4px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        .tab { flex: 1; padding: 8px 4px; text-align: center; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 0.7rem; color: var(--gray); }
+        .tab.active { background: var(--primary); color: white; }
+        .tab i { display: block; font-size: 1rem; margin-bottom: 3px; }
+        
+        .content { padding: 0 10px 85px; }
+        .section { display: none; }
+        .section.active { display: block; }
+        
+        #mapBox { height: 55vh; border-radius: 14px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 3px 12px rgba(0,0,0,0.1); }
+        #mainMap { height: 100%; width: 100%; }
+        
+        .legend { background: white; padding: 10px 12px; border-radius: 10px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        .legend h4 { font-size: 0.75rem; color: var(--dark); margin-bottom: 8px; }
+        .legend-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .leg-item { display: flex; align-items: center; gap: 5px; font-size: 0.7rem; color: var(--gray); }
+        .leg-dot { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+        
+        .place-filters { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 5px; }
+        .place-filters::-webkit-scrollbar { display: none; }
+        .pf-btn { padding: 6px 12px; border-radius: 16px; background: white; border: 1px solid var(--light); font-size: 0.7rem; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 4px; }
+        .pf-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .pf-btn i { font-size: 0.8rem; }
+        
+        .card { background: white; border-radius: 12px; padding: 12px; margin-bottom: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+        .card-head { display: flex; align-items: center; gap: 10px; }
+        .card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
+        .card-info { flex: 1; min-width: 0; }
+        .card-info h3 { font-size: 0.9rem; color: var(--dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card-info p { font-size: 0.7rem; color: var(--gray); }
+        .card-meta { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+        .card-meta span { font-size: 0.65rem; color: var(--gray); display: flex; align-items: center; gap: 3px; }
+        
+        .badge { padding: 2px 7px; border-radius: 12px; font-size: 0.6rem; font-weight: 600; }
+        .badge-user { background: #dbeafe; color: #1e40af; }
+        .badge-place { background: #fef3c7; color: #92400e; }
+        
+        .btn { padding: 7px 14px; border-radius: 8px; font-weight: 600; font-size: 0.75rem; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 4px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-sm { padding: 5px 10px; font-size: 0.7rem; }
+        .btn-block { width: 100%; justify-content: center; }
+        
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--dark); margin-bottom: 5px; }
+        .form-control { width: 100%; padding: 9px 11px; border: 2px solid var(--light); border-radius: 8px; font-size: 0.8rem; }
+        .form-control:focus { outline: none; border-color: var(--primary); }
+        
+        .act-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+        .act-item { background: white; border: 2px solid transparent; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer; }
+        .act-item:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.08); }
+        .act-item.selected { border-color: var(--primary); background: #eef2ff; }
+        .act-item i { font-size: 1.2rem; margin-bottom: 4px; display: block; }
+        .act-item span { font-size: 0.65rem; color: var(--dark); }
+        
+        .mood-row { display: flex; flex-wrap: wrap; gap: 5px; }
+        .mood-btn { padding: 5px 10px; border-radius: 12px; background: var(--light); color: var(--gray); font-size: 0.7rem; cursor: pointer; }
+        .mood-btn.selected { background: var(--primary); color: white; }
+        
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: flex-end; }
+        .modal.show { display: flex; }
+        .modal-box { background: white; width: 100%; max-height: 80vh; border-radius: 16px 16px 0 0; padding: 16px; overflow-y: auto; animation: slideUp 0.25s; }
+        @keyframes slideUp { from { transform: translateY(100%); } }
+        .modal-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .modal-top h2 { font-size: 1rem; }
+        .modal-close { width: 28px; height: 28px; border-radius: 50%; background: var(--light); border: none; cursor: pointer; font-size: 1rem; }
+        
+        .fab { position: fixed; bottom: 70px; right: 12px; width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border: none; font-size: 1.2rem; cursor: pointer; box-shadow: 0 3px 12px rgba(99,102,241,0.4); z-index: 99; }
+        
+        .empty { text-align: center; padding: 25px 10px; color: var(--gray); }
+        .empty i { font-size: 2rem; margin-bottom: 10px; opacity: 0.5; }
+        .empty p { font-size: 0.8rem; }
+        
+        .loading { text-align: center; padding: 20px; }
+        .spinner { width: 30px; height: 30px; border: 3px solid var(--light); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 8px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: var(--dark); color: white; padding: 8px 16px; border-radius: 8px; font-size: 0.8rem; z-index: 2000; }
+        
+        .list-container { max-height: 35vh; overflow-y: auto; }
+        
+        /* Chat styles */
+        .chat-box { height: 220px; overflow-y: auto; border: 1px solid var(--light); border-radius: 10px; padding: 10px; margin-bottom: 10px; background: #fafafa; }
+        .chat-msg { margin-bottom: 8px; }
+        .chat-msg.sent { text-align: right; }
+        .chat-bubble { display: inline-block; padding: 7px 11px; border-radius: 10px; max-width: 80%; font-size: 0.8rem; }
+        .chat-msg.received .chat-bubble { background: white; border: 1px solid var(--light); }
+        .chat-msg.sent .chat-bubble { background: var(--primary); color: white; }
+        .chat-input { display: flex; gap: 6px; }
+        
+        .conn-row { display: flex; align-items: center; gap: 8px; }
+        .conn-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), var(--secondary)); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.8rem; }
+        .conn-info { flex: 1; }
+        .conn-info h4 { font-size: 0.85rem; }
+        .conn-info p { font-size: 0.7rem; color: var(--gray); }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🌍 WanderEase Complete Explorer</h1>
-            <p class="subtitle">Explore Tourism, Restaurants, Hotels & Interactive Maps</p>
-            <div class="badges">
-                <span class="badge">📸 Real Google Images</span>
-                <span class="badge">🗺️ Interactive Maps</span>
-                <span class="badge">👤 User Profiles</span>
-                <span class="badge">💖 Save Favorites</span>
+    <header class="header">
+        <div class="header-row">
+            <div><h1>🧭 WanderEase</h1><p>Discover places & connect with people</p></div>
+            <button class="loc-btn" onclick="refreshLoc()"><i class="fas fa-crosshairs"></i></button>
+        </div>
+        <div class="user-row">
+            <input type="text" id="userId" placeholder="Your User ID" value="user123">
+            <button onclick="setUser()"><i class="fas fa-check"></i> Set</button>
+        </div>
+    </header>
+    
+    <div class="tabs">
+        <div class="tab active" data-tab="discover"><i class="fas fa-map-marked-alt"></i>Discover</div>
+        <div class="tab" data-tab="activities"><i class="fas fa-users"></i>Activities</div>
+        <div class="tab" data-tab="connections"><i class="fas fa-comments"></i>Chats</div>
+    </div>
+    
+    <div class="content">
+        <!-- DISCOVER TAB -->
+        <section id="discover" class="section active">
+            <div class="place-filters">
+                <div class="pf-btn active" data-type="all" onclick="filterPlaces('all',this)"><i class="fas fa-globe"></i> All</div>
+                <div class="pf-btn" data-type="tourism" onclick="filterPlaces('tourism',this)"><i class="fas fa-landmark"></i> Tourism</div>
+                <div class="pf-btn" data-type="restaurant" onclick="filterPlaces('restaurant',this)"><i class="fas fa-utensils"></i> Restaurant</div>
+                <div class="pf-btn" data-type="hotel" onclick="filterPlaces('hotel',this)"><i class="fas fa-hotel"></i> Hotel</div>
+                <div class="pf-btn" data-type="cafe" onclick="filterPlaces('cafe',this)"><i class="fas fa-mug-hot"></i> Cafe</div>
+            </div>
+            
+            <div id="mapBox"><div id="mainMap"></div></div>
+            
+            <div class="legend">
+                <h4>🗺️ Map Legend</h4>
+                <div class="legend-grid">
+                    <div class="leg-item"><div class="leg-dot" style="background:#E91E63">📍</div>You</div>
+                    <div class="leg-item"><div class="leg-dot" style="background:#9C27B0">🏛️</div>Tourism</div>
+                    <div class="leg-item"><div class="leg-dot" style="background:#FF5722">🍽️</div>Restaurant</div>
+                    <div class="leg-item"><div class="leg-dot" style="background:#00BCD4">🏨</div>Hotel</div>
+                    <div class="leg-item"><div class="leg-dot" style="background:#8D6E63">☕</div>Cafe</div>
+                    <div class="leg-item"><div class="leg-dot" style="background:#4CAF50">👤</div>User Activity</div>
+                </div>
+            </div>
+            
+            <h4 style="font-size:0.8rem;margin-bottom:8px;color:var(--dark)">Nearby Places & People</h4>
+            <div class="list-container" id="placesList">
+                <div class="loading"><div class="spinner"></div><p style="font-size:0.8rem">Loading...</p></div>
+            </div>
+        </section>
+        
+        <!-- ACTIVITIES TAB -->
+        <section id="activities" class="section">
+            <h4 style="font-size:0.8rem;margin-bottom:8px;color:var(--dark)">My Activities</h4>
+            <div id="myActivities"></div>
+        </section>
+        
+        <!-- CONNECTIONS TAB -->
+        <section id="connections" class="section">
+            <h4 style="font-size:0.8rem;margin-bottom:8px;color:var(--dark)">Pending Requests</h4>
+            <div id="pendingReqs"></div>
+            <h4 style="font-size:0.8rem;margin:12px 0 8px;color:var(--dark)">Active Chats</h4>
+            <div id="activeChats"></div>
+        </section>
+    </div>
+    
+    <button class="fab" onclick="openCreate()"><i class="fas fa-plus"></i></button>
+    
+    <!-- CREATE MODAL -->
+    <div class="modal" id="createModal">
+        <div class="modal-box">
+            <div class="modal-top">
+                <h2>Create Activity</h2>
+                <button class="modal-close" onclick="closeModal('createModal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>What are you doing?</label>
+                <div class="act-grid" id="actTypes"></div>
+            </div>
+            <div class="form-group">
+                <label>Place Name</label>
+                <input type="text" class="form-control" id="placeName" placeholder="e.g., Starbucks Central">
+            </div>
+            <div class="form-group">
+                <label>Mood</label>
+                <div class="mood-row" id="moodBtns"></div>
+            </div>
+            <div class="form-group">
+                <label>Max Participants: <span id="maxVal">5</span></label>
+                <input type="range" min="2" max="10" value="5" class="form-control" id="maxPart" oninput="document.getElementById('maxVal').textContent=this.value" style="padding:0">
+            </div>
+            <button class="btn btn-primary btn-block" onclick="createActivity()"><i class="fas fa-plus"></i> Create Activity</button>
+        </div>
+    </div>
+    
+    <!-- CHAT MODAL -->
+    <div class="modal" id="chatModal">
+        <div class="modal-box">
+            <div class="modal-top">
+                <h2 id="chatWith">Chat</h2>
+                <button class="modal-close" onclick="closeModal('chatModal')">&times;</button>
+            </div>
+            <div class="chat-box" id="chatMsgs"></div>
+            <div class="chat-input">
+                <input type="text" class="form-control" id="msgInput" placeholder="Type message...">
+                <button class="btn btn-primary" onclick="sendMsg()"><i class="fas fa-paper-plane"></i></button>
             </div>
         </div>
-
-        <!-- User Panel (shown when logged in) -->
-        <div id="userPanel" style="display: none;"></div>
-
-        <!-- Login Section (shown when not logged in) -->
-        <div id="loginSection" class="login-section">
-            <h2>👤 Login / Register</h2>
-            <p style="color: #666; margin-bottom: 25px;">Enter your details to save favorites and personalize your experience</p>
-            <div class="login-form">
-                <input type="text" id="clerkId" placeholder="Clerk ID (e.g., user_abc123)" required>
-                <input type="text" id="userName" placeholder="Your Name" required>
-                <input type="email" id="userEmail" placeholder="Email Address" required>
-                <input type="tel" id="userPhone" placeholder="Phone Number (Optional)">
-                <button onclick="loginOrRegister()">🚀 Get Started</button>
-            </div>
-        </div>
-
-        <div class="search-section">
-            <h2>🔍 What would you like to explore?</h2>
-
-            <div class="category-tabs">
-                <div class="category-tab active" onclick="selectCategory('tourism')" id="tab-tourism">
-                    <span>🏛️ Tourism</span>
-                </div>
-                <div class="category-tab" onclick="selectCategory('restaurants')" id="tab-restaurants">
-                    <span>🍽️ Restaurants</span>
-                </div>
-                <div class="category-tab" onclick="selectCategory('hotels')" id="tab-hotels">
-                    <span>🏨 Hotels</span>
-                </div>
-                <div class="category-tab" onclick="selectCategory('map')" id="tab-map">
-                    <span>🗺️ Map</span>
-                </div>
-            </div>
-
-            <div class="search-controls" id="basic-controls">
-                <div class="input-group">
-                    <label for="location">📍 Location</label>
-                    <input type="text" id="location" placeholder="Enter city or place (e.g., Paris, Tokyo, London)"
-                        value="Paris">
-                </div>
-                <div class="input-group" style="max-width: 200px;">
-                    <label for="limit">🔢 Number of Results</label>
-                    <input type="number" id="limit" placeholder="Limit" value="12" min="1" max="50">
-                </div>
-                <button class="search-btn" onclick="performSearch()">
-                    🔍 Search Now
-                </button>
-            </div>
-
-            <div class="map-controls" id="map-controls">
-                <div class="input-group">
-                    <label for="map-location">📍 Map Center Location</label>
-                    <input type="text" id="map-location" placeholder="Enter location (e.g., Indore, Paris, New York)"
-                        value="Indore">
-                </div>
-                <div class="input-group">
-                    <label for="map-markers">📌 Custom Markers (Optional)</label>
-                    <input type="text" id="map-markers" placeholder="lat,lon,lat,lon (e.g., 22.7196,75.8577)">
-                </div>
-                <div class="input-group">
-                    <label for="map-nearby">🎯 Show Nearby Places</label>
-                    <select id="map-nearby">
-                        <option value="">No nearby places</option>
-                        <option value="tourism">🏛️ Tourist Attractions</option>
-                        <option value="restaurant">🍽️ Restaurants</option>
-                        <option value="hotel">🏨 Hotels</option>
-                        <option value="cafe">☕ Cafes</option>
-                    </select>
-                </div>
-                <div class="input-group" style="max-width: 200px;">
-                    <label for="map-radius">📏 Radius (meters)</label>
-                    <input type="number" id="map-radius" placeholder="Radius" value="1000" min="100" max="5000">
-                </div>
-                <div class="input-group" style="max-width: 200px;">
-                    <label for="map-limit">🔢 Nearby Limit</label>
-                    <input type="number" id="map-limit" placeholder="Limit" value="20" min="1" max="50">
-                </div>
-                <button class="search-btn" onclick="generateMap()">
-                    🗺️ Generate Map
-                </button>
-            </div>
-        </div>
-
-        <div id="statsContainer"></div>
-        <div id="loadingContainer"></div>
-        <div id="resultsContainer"></div>
     </div>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const API_BASE = 'https://backend-api-2kyx.onrender.com';
-        let currentCategory = 'tourism';
-        let currentUser = null;
-        let userLikedItems = { tourism: [], restaurants: [], hotels: [] };
-        let currentMapHtml = null;
-
-        const categoryNames = {
-            'tourism': 'Tourism Places',
-            'restaurants': 'Restaurants',
-            'hotels': 'Hotels'
+        const API = 'http://127.0.0.1:8000/api';
+        let user = 'user123';
+        let loc = { lat: 22.7196, lon: 75.8577 };
+        let map, userMarker;
+        let allMarkers = [];
+        let allItems = [];
+        let selType = null, selMood = 'casual', curConn = null;
+        let currentFilter = 'all';
+        
+        const TYPES = {
+            cafe: { icon: 'fa-mug-hot', emoji: '☕', label: 'Café', color: '#8D6E63' },
+            garden: { icon: 'fa-tree', emoji: '🌳', label: 'Park', color: '#4CAF50' },
+            restaurant: { icon: 'fa-utensils', emoji: '🍽️', label: 'Restaurant', color: '#FF5722' },
+            mall: { icon: 'fa-bag-shopping', emoji: '🛍️', label: 'Mall', color: '#E91E63' },
+            library: { icon: 'fa-book', emoji: '📚', label: 'Library', color: '#3F51B5' },
+            movie: { icon: 'fa-film', emoji: '🎬', label: 'Movie', color: '#9C27B0' },
+            gym: { icon: 'fa-dumbbell', emoji: '💪', label: 'Gym', color: '#F44336' },
+            event: { icon: 'fa-calendar-star', emoji: '🎉', label: 'Event', color: '#FF9800' },
+            coworking: { icon: 'fa-laptop', emoji: '💻', label: 'Co-work', color: '#00BCD4' },
+            tourism: { icon: 'fa-landmark', emoji: '🏛️', label: 'Tourism', color: '#9C27B0' },
+            hotel: { icon: 'fa-hotel', emoji: '🏨', label: 'Hotel', color: '#00BCD4' }
         };
-
-        // Check if user is logged in (using localStorage)
-        window.onload = () => {
-            const savedUser = localStorage.getItem('wanderease_user');
-            if (savedUser) {
-                currentUser = JSON.parse(savedUser);
-                loadUserData();
-            }
-        };
-
-        async function loginOrRegister() {
-            const clerkId = document.getElementById('clerkId').value.trim();
-            const name = document.getElementById('userName').value.trim();
-            const email = document.getElementById('userEmail').value.trim();
-            const phone = document.getElementById('userPhone').value.trim();
-
-            if (!clerkId || !name || !email) {
-                alert('⚠️ Please fill in all required fields!');
-                return;
-            }
-
-            try {
-                // Try to get user first
-                let response = await fetch(`${API_BASE}/api/users/${clerkId}`);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    currentUser = data.user;
-                    alert('✅ Welcome back, ' + currentUser.name + '!');
-                } else {
-                    // Register new user
-                    response = await fetch(`${API_BASE}/api/users`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ clerk_id: clerkId, name, email, phone })
-                    });
-
-                    if (response.ok) {
-                        const data = await response.json();
-                        currentUser = data.user;
-                        alert('🎉 Account created successfully!');
-                    } else {
-                        const error = await response.json();
-                        throw new Error(error.detail || 'Failed to create account');
-                    }
-                }
-
-                localStorage.setItem('wanderease_user', JSON.stringify(currentUser));
-                loadUserData();
-            } catch (error) {
-                alert('❌ Error: ' + error.message);
-            }
-        }
-
-        async function loadUserData() {
-            document.getElementById('loginSection').style.display = 'none';
+        const MOODS = ['chill', 'social', 'study', 'adventure', 'networking', 'casual'];
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initUI();
+            initMap();
+            getLoc();
+        });
+        
+        function initUI() {
+            // Activity types for modal
+            const actGrid = ['cafe','garden','restaurant','mall','library','movie','gym','event','coworking'];
+            document.getElementById('actTypes').innerHTML = actGrid.map(k => {
+                const t = TYPES[k];
+                return `<div class="act-item" onclick="pickType('${k}',this)"><i class="fas ${t.icon}" style="color:${t.color}"></i><span>${t.label}</span></div>`;
+            }).join('');
             
-            // Load liked items
+            // Mood buttons
+            document.getElementById('moodBtns').innerHTML = MOODS.map(m => 
+                `<div class="mood-btn ${m==='casual'?'selected':''}" onclick="pickMood('${m}',this)">${m}</div>`
+            ).join('');
+            
+            // Tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.onclick = () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(tab.dataset.tab).classList.add('active');
+                    if (tab.dataset.tab === 'activities') loadMyActs();
+                    if (tab.dataset.tab === 'connections') loadConns();
+                    if (tab.dataset.tab === 'discover') setTimeout(() => map?.invalidateSize(), 100);
+                };
+            });
+        }
+        
+        function initMap() {
+            map = L.map('mainMap').setView([loc.lat, loc.lon], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OSM' }).addTo(map);
+            userMarker = L.marker([loc.lat, loc.lon], {
+                icon: L.divIcon({
+                    html: '<div style="background:#E91E63;width:24px;height:24px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;">📍</div>',
+                    iconSize: [24, 24], className: ''
+                })
+            }).addTo(map).bindPopup('<b>You are here</b>');
+        }
+        
+        function getLoc() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(p => {
+                    loc = { lat: p.coords.latitude, lon: p.coords.longitude };
+                    map.setView([loc.lat, loc.lon], 14);
+                    userMarker.setLatLng([loc.lat, loc.lon]);
+                    loadAll();
+                }, () => loadAll());
+            } else loadAll();
+        }
+        
+        function refreshLoc() { toast('Refreshing...'); getLoc(); }
+        function setUser() { user = document.getElementById('userId').value.trim() || 'user123'; toast('User: ' + user); loadAll(); }
+        
+        function pickType(t, el) {
+            selType = t;
+            document.querySelectorAll('.act-item').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+        
+        function pickMood(m, el) {
+            selMood = m;
+            document.querySelectorAll('.mood-btn').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+        
+        function filterPlaces(type, el) {
+            currentFilter = type;
+            document.querySelectorAll('.pf-btn').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            renderList();
+            renderMarkers();
+        }
+        
+        // Load all data
+        async function loadAll() {
+            allItems = [];
+            allMarkers.forEach(m => map.removeLayer(m));
+            allMarkers = [];
+            
+            document.getElementById('placesList').innerHTML = '<div class="loading"><div class="spinner"></div><p style="font-size:0.8rem">Loading nearby...</p></div>';
+            
             try {
-                const response = await fetch(`${API_BASE}/api/users/${currentUser.clerk_id}/likes`);
-                if (response.ok) {
-                    const data = await response.json();
-                    userLikedItems = data.liked;
-                }
-            } catch (error) {
-                console.error('Error loading liked items:', error);
-            }
-
-            // Show user panel
-            const panel = document.getElementById('userPanel');
-            panel.style.display = 'flex';
-            panel.innerHTML = `
-                <div class="user-info">
-                    <div class="user-avatar">${currentUser.name.charAt(0).toUpperCase()}</div>
-                    <div class="user-details">
-                        <h3>${currentUser.name}</h3>
-                        <p>${currentUser.email}</p>
-                    </div>
-                </div>
-                <div class="user-actions">
-                    <button class="user-btn primary" onclick="showMyFavorites()">
-                        💖 My Favorites (${getTotalLikes()})
-                    </button>
-                    <button class="user-btn secondary" onclick="logout()">
-                        🚪 Logout
-                    </button>
-                </div>
-            `;
-        }
-
-        function getTotalLikes() {
-            return (userLikedItems.tourism?.length || 0) + 
-                   (userLikedItems.restaurants?.length || 0) + 
-                   (userLikedItems.hotels?.length || 0);
-        }
-
-        function logout() {
-            localStorage.removeItem('wanderease_user');
-            currentUser = null;
-            userLikedItems = { tourism: [], restaurants: [], hotels: [] };
-            document.getElementById('userPanel').style.display = 'none';
-            document.getElementById('loginSection').style.display = 'block';
-            clearResults();
-        }
-
-        async function toggleLike(item, category) {
-            if (!currentUser) {
-                alert('⚠️ Please login to save favorites!');
-                return;
-            }
-
-            const itemId = item.place_id || item.restaurant_id || item.hotel_id;
-            const isLiked = isItemLiked(itemId, category);
-
-            try {
-                if (isLiked) {
-                    // Unlike
-                    const response = await fetch(
-                        `${API_BASE}/api/users/${currentUser.clerk_id}/likes/${category}/${itemId}`,
-                        { method: 'DELETE' }
-                    );
-                    if (response.ok) {
-                        const data = await response.json();
-                        userLikedItems = data.liked;
-                        return false;
-                    }
-                } else {
-                    // Like
-                    const response = await fetch(
-                        `${API_BASE}/api/users/${currentUser.clerk_id}/likes/${category}`,
-                        {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                item_id: itemId,
-                                name: item.name,
-                                image_url: item.image_url,
-                                type: item.type
-                            })
+                // Fetch places from each category
+                const placeTypes = ['tourism', 'restaurant', 'hotel', 'cafe'];
+                for (const pType of placeTypes) {
+                    try {
+                        const res = await fetch(`${API}/${pType === 'cafe' ? 'restaurants' : pType === 'tourism' ? 'tourism' : pType + 's'}?location=${loc.lat},${loc.lon}&limit=10`);
+                        const data = await res.json();
+                        if (data.data) {
+                            data.data.forEach(item => {
+                                allItems.push({
+                                    ...item,
+                                    itemType: 'place',
+                                    placeType: pType,
+                                    lat: item.lat || loc.lat + (Math.random() - 0.5) * 0.02,
+                                    lon: item.lon || loc.lon + (Math.random() - 0.5) * 0.02
+                                });
+                            });
                         }
-                    );
-                    if (response.ok) {
-                        const data = await response.json();
-                        userLikedItems = data.liked;
-                        return true;
-                    }
+                    } catch (e) { console.log(`Error loading ${pType}:`, e); }
                 }
-            } catch (error) {
-                console.error('Error toggling like:', error);
-            }
-        }
-
-        function isItemLiked(itemId, category) {
-            return userLikedItems[category]?.some(item => item.item_id === itemId) || false;
-        }
-
-        function selectCategory(category) {
-            currentCategory = category;
-
-            // Update tabs UI
-            document.querySelectorAll('.category-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.getElementById(`tab-${category}`).classList.add('active');
-
-            // Show/hide appropriate controls
-            if (category === 'map') {
-                document.getElementById('basic-controls').style.display = 'none';
-                document.getElementById('map-controls').classList.add('active');
-            } else {
-                document.getElementById('basic-controls').style.display = 'flex';
-                document.getElementById('map-controls').classList.remove('active');
-
-                // Update placeholder based on category
-                const locationInput = document.getElementById('location');
-                const placeholders = {
-                    'tourism': 'Enter city (e.g., Paris, Rome, Tokyo)',
-                    'restaurants': 'Enter location (e.g., New York, Mumbai, London)',
-                    'hotels': 'Enter destination (e.g., Dubai, Singapore, Bali)'
-                };
-                locationInput.placeholder = placeholders[category];
-            }
-
-            // Clear previous results
-            clearResults();
-        }
-
-        async function performSearch() {
-            const location = document.getElementById('location').value.trim();
-            const limit = document.getElementById('limit').value || 12;
-
-            if (!location) {
-                alert('⚠️ Please enter a location to search!');
-                return;
-            }
-
-            await fetchData(currentCategory, location, limit);
-        }
-
-        async function generateMap() {
-            const location = document.getElementById('map-location').value.trim();
-            const markers = document.getElementById('map-markers').value.trim();
-            const showNearby = document.getElementById('map-nearby').value;
-            const radius = document.getElementById('map-radius').value || 1000;
-            const nearbyLimit = document.getElementById('map-limit').value || 20;
-
-            if (!location) {
-                alert('⚠️ Please enter a location for the map!');
-                return;
-            }
-
-            await fetchMap(location, markers, showNearby, radius, nearbyLimit);
-        }
-
-        async function fetchMap(location, markers, showNearby, radius, nearbyLimit) {
-            const loadingContainer = document.getElementById('loadingContainer');
-            const resultsContainer = document.getElementById('resultsContainer');
-            const statsContainer = document.getElementById('statsContainer');
-
-            loadingContainer.innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <div>🗺️ Generating interactive map for ${location}...</div>
-                    <div style="font-size: 1.1rem; margin-top: 15px; opacity: 0.9;">
-                        ${showNearby ? `Including nearby ${showNearby} places...` : 'Creating your map...'}
-                    </div>
-                </div>
-            `;
-            resultsContainer.innerHTML = '';
-            statsContainer.innerHTML = '';
-
-            try {
-                let url = `${API_BASE}/api/map?location=${encodeURIComponent(location)}`;
-                if (markers) url += `&markers=${encodeURIComponent(markers)}`;
-                if (showNearby) url += `&show_nearby=${showNearby}&nearby_radius=${radius}&nearby_limit=${nearbyLimit}`;
-
-                const response = await fetch(url);
-                const data = await response.json();
-
-                loadingContainer.innerHTML = '';
-
-                if (data.success && data.map_html) {
-                    currentMapHtml = data.map_html;
-
-                    statsContainer.innerHTML = `
-                        <div class="stats-panel">
-                            <h3>🎉 Map Generated Successfully!</h3>
-                            <p class="subtitle">
-                                Location: <strong>${data.location}</strong> | 
-                                Center: ${data.center.lat.toFixed(4)}, ${data.center.lon.toFixed(4)}
-                                ${data.nearby_count ? ` | Nearby places: ${data.nearby_count}` : ''}
-                            </p>
-                        </div>
-                    `;
-
-                    resultsContainer.innerHTML = `
-                        <div class="map-result">
-                            <h3>🗺️ Your Interactive Map</h3>
-                            
-                            <div class="map-info">
-                                <p><strong>📍 Location:</strong> ${data.center.display_name || location}</p>
-                                <p><strong>📌 Total Markers:</strong> ${(data.markers ? data.markers.length : 0) + 1}</p>
-                                ${data.nearby_count ? `<p><strong>🎯 Nearby Places:</strong> ${data.nearby_count}</p>` : ''}
-                                <p><strong>✨ Features:</strong> Zoom, Pan, Click markers for details</p>
-                            </div>
-
-                            <div class="map-actions">
-                                <button class="map-btn" onclick="openMapInNewTab()">
-                                    🗺️ Open Full Map
-                                </button>
-                                <button class="map-btn secondary" onclick="downloadMap()">
-                                    💾 Download HTML
-                                </button>
-                                <button class="map-btn danger" onclick="showMapPreview()">
-                                    👁️ Quick Preview
-                                </button>
-                            </div>
-
-                            <div style="background: #f0f0f0; padding: 20px; border-radius: 12px; text-align: center; color: #666;">
-                                <p><strong>💡 Tip:</strong> Click "Open Full Map" to view the interactive map in a new tab with full zoom and pan controls!</p>
-                            </div>
-                        </div>
-                    `;
-                } else {
-                    resultsContainer.innerHTML = `
-                        <div class="no-results">
-                            <div class="no-results-icon">❌</div>
-                            <div>Failed to generate map</div>
-                            <div style="font-size: 1.2rem; margin-top: 15px;">
-                                Please check the location and try again
-                            </div>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                loadingContainer.innerHTML = '';
-                resultsContainer.innerHTML = `
-                    <div class="no-results">
-                        <div class="no-results-icon">❌</div>
-                        <div>Connection Error</div>
-                        <div style="font-size: 1.2rem; margin-top: 15px;">
-                            ${error.message}
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        function openMapInNewTab() {
-            if (currentMapHtml) {
-                const newWindow = window.open('', '_blank');
-                newWindow.document.write(currentMapHtml);
-                newWindow.document.close();
-            } else {
-                alert('⚠️ No map data available. Please generate a map first.');
-            }
-        }
-
-        function downloadMap() {
-            if (currentMapHtml) {
-                const blob = new Blob([currentMapHtml], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-                a.download = `wanderease-map-${timestamp}.html`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            } else {
-                alert('⚠️ No map data available. Please generate a map first.');
-            }
-        }
-
-        function showMapPreview() {
-            if (!currentMapHtml) {
-                alert('⚠️ No map available');
-                return;
-            }
-
-            const previewDiv = document.createElement('div');
-            previewDiv.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 20px;';
-
-            previewDiv.innerHTML = `
-                <div style="width: 95%; height: 95%; background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column;">
-                    <div style="padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                        <h3 style="margin: 0; font-size: 1.5rem;">🗺️ Map Preview</h3>
-                        <button onclick="this.closest('div').parentElement.remove()" style="background: white; color: #667eea; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600;">
-                            ✕ Close
-                        </button>
-                    </div>
-                    <div style="flex: 1; overflow: hidden;">
-                        <iframe style="width: 100%; height: 100%; border: none;"></iframe>
-                    </div>
-                </div>
-            `;
-
-            document.body.appendChild(previewDiv);
-
-            setTimeout(() => {
-                const iframe = previewDiv.querySelector('iframe');
-                const doc = iframe.contentDocument || iframe.contentWindow.document;
-                doc.open();
-                doc.write(currentMapHtml);
-                doc.close();
-            }, 100);
-
-            previewDiv.addEventListener('click', function (e) {
-                if (e.target === previewDiv) {
-                    previewDiv.remove();
-                }
-            });
-        }
-
-        async function fetchData(category, location, limit) {
-            const loadingContainer = document.getElementById('loadingContainer');
-            const resultsContainer = document.getElementById('resultsContainer');
-            const statsContainer = document.getElementById('statsContainer');
-
-            loadingContainer.innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <div>🔍 Searching for ${categoryNames[category]} in ${location}...</div>
-                    <div style="font-size: 1.1rem; margin-top: 15px; opacity: 0.9;">
-                        📸 Fetching real images from Google Custom Search API...
-                    </div>
-                </div>
-            `;
-            resultsContainer.innerHTML = '';
-            statsContainer.innerHTML = '';
-
-            try {
-                const response = await fetch(`${API_BASE}/api/${category}?location=${encodeURIComponent(location)}&limit=${limit}`);
-                const data = await response.json();
-
-                loadingContainer.innerHTML = '';
-
-                if (data.success && data.data && data.data.length > 0) {
-                    statsContainer.innerHTML = `
-                        <div class="stats-panel">
-                            <h3>🎉 Found ${data.count} ${categoryNames[category]}</h3>
-                            <p class="subtitle">
-                                in <strong>${data.location}</strong> | 
-                                Images by ${data.image_source || 'Google Custom Search API'}
-                            </p>
-                        </div>
-                    `;
-
-                    displayResults(data.data, category);
-                } else {
-                    resultsContainer.innerHTML = `
-                        <div class="no-results">
-                            <div class="no-results-icon">😕</div>
-                            <div>No ${categoryNames[category].toLowerCase()} found in ${location}</div>
-                            <div style="font-size: 1.2rem; margin-top: 15px; opacity: 0.9;">
-                                Try searching in a different location!
-                            </div>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                loadingContainer.innerHTML = '';
-                resultsContainer.innerHTML = `
-                    <div class="no-results">
-                        <div class="no-results-icon">❌</div>
-                        <div>Connection Error</div>
-                        <div style="font-size: 1.2rem; margin-top: 15px;">
-                            ${error.message}
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        function displayResults(data, category) {
-            const container = document.getElementById('resultsContainer');
-            const grid = document.createElement('div');
-            grid.className = 'results-grid';
-
-            data.forEach(item => {
-                const itemId = item.place_id || item.restaurant_id || item.hotel_id;
-                const isLiked = isItemLiked(itemId, category);
-
-                let badge = '';
-                let type = '';
-                let price = '';
-                let info = item.description || item.address || 'No description available';
-
-                if (category === 'tourism') {
-                    badge = '🏛️';
-                    type = item.type || 'Attraction';
-                    price = item.price ? `${item.price}` : 'Free';
-                } else if (category === 'restaurants') {
-                    badge = '🍽️';
-                    type = item.cuisine || 'Restaurant';
-                    price = item.price_range || '$';
-                } else if (category === 'hotels') {
-                    badge = '🏨';
-                    type = item.type || 'Hotel';
-                    price = `${item.price_per_night}`;
-                }
-
-                const rating = item.rating ? item.rating.toFixed(1) : '4.0';
-
-                const card = document.createElement('div');
-                card.className = 'result-card';
                 
-                // Escape item data for onclick
-                const itemJson = JSON.stringify(item).replace(/"/g, '&quot;');
-
-                card.innerHTML = `
-                    <div class="card-image-container">
-                        <button class="like-btn ${isLiked ? 'liked' : ''}" onclick='handleLikeClick(event, ${itemJson}, "${category}", "${itemId}")'>
-                            ${isLiked ? '❤️' : '🤍'}
-                        </button>
-                        <img src="${item.image_url}" alt="${item.name}" class="card-image" onerror="this.src='https://via.placeholder.com/400x300?text=Image'" loading="lazy">
-                        <div class="card-badge">${badge} ${type}</div>
-                    </div>
-                    <div class="card-content">
-                        <h3 class="card-title">${item.name}</h3>
-                        <span class="card-type">${type}</span>
-                        <div class="card-rating">
-                            <span class="rating-stars">⭐ ${rating}</span>
-                            <span>${Math.floor(Math.random() * 500 + 100)} reviews</span>
-                        </div>
-                        <div class="card-price">${price}</div>
-                        <div class="card-info">${info}</div>
-                    </div>
-                `;
-
-                grid.appendChild(card);
-            });
-
-            container.appendChild(grid);
-        }
-
-        async function handleLikeClick(event, item, category, itemId) {
-            event.stopPropagation();
-            const btn = event.currentTarget;
-            
-            const newLikedState = await toggleLike(item, category);
-            if (newLikedState !== undefined) {
-                btn.classList.toggle('liked', newLikedState);
-                btn.textContent = newLikedState ? '❤️' : '🤍';
+                // Fetch user activities
+                const actRes = await fetch(`${API}/activities/nearby?lat=${loc.lat}&lon=${loc.lon}&radius_km=10&limit=20`);
+                const actData = await actRes.json();
+                if (actData.activities) {
+                    actData.activities.forEach(act => {
+                        allItems.push({
+                            ...act,
+                            itemType: 'activity',
+                            placeType: act.activity_type
+                        });
+                    });
+                }
                 
-                // Update user panel
-                if (currentUser) {
-                    loadUserData();
-                }
+                renderList();
+                renderMarkers();
+                
+            } catch (err) {
+                console.error(err);
+                document.getElementById('placesList').innerHTML = '<div class="empty"><i class="fas fa-exclamation-circle"></i><p>Error loading data</p></div>';
             }
-        }
-
-        function showMyFavorites() {
-            const total = getTotalLikes();
-            if (total === 0) {
-                alert('💖 You haven\'t saved any favorites yet! Start exploring and click the heart icon on items you like.');
-                return;
-            }
-            
-            // Create favorites modal
-            const modal = document.createElement('div');
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 99999; overflow-y: auto; padding: 20px;';
-            
-            const tourismCount = userLikedItems.tourism?.length || 0;
-            const restaurantsCount = userLikedItems.restaurants?.length || 0;
-            const hotelsCount = userLikedItems.hotels?.length || 0;
-            
-            modal.innerHTML = `
-                <div style="max-width: 1400px; margin: 0 auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
-                    <!-- Header -->
-                    <div style="padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <h2 style="font-size: 2.5rem; margin-bottom: 10px;">💖 My Favorites</h2>
-                            <p style="font-size: 1.2rem; opacity: 0.9;">${total} saved items across all categories</p>
-                        </div>
-                        <button onclick="this.closest('div').parentElement.parentElement.remove()" 
-                                style="background: white; color: #667eea; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 1.1rem; transition: all 0.3s;">
-                            ✕ Close
-                        </button>
-                    </div>
-                    
-                    <!-- Category Tabs -->
-                    <div style="padding: 30px; background: #f8f9fa; display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
-                        <button class="fav-tab active" data-category="all" onclick="switchFavCategory('all')" 
-                                style="padding: 15px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1rem; transition: all 0.3s;">
-                            🌟 All (${total})
-                        </button>
-                        <button class="fav-tab" data-category="tourism" onclick="switchFavCategory('tourism')" 
-                                style="padding: 15px 30px; background: #e0e0e0; color: #333; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1rem; transition: all 0.3s;">
-                            🏛️ Tourism (${tourismCount})
-                        </button>
-                        <button class="fav-tab" data-category="restaurants" onclick="switchFavCategory('restaurants')" 
-                                style="padding: 15px 30px; background: #e0e0e0; color: #333; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1rem; transition: all 0.3s;">
-                            🍽️ Restaurants (${restaurantsCount})
-                        </button>
-                        <button class="fav-tab" data-category="hotels" onclick="switchFavCategory('hotels')" 
-                                style="padding: 15px 30px; background: #e0e0e0; color: #333; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1rem; transition: all 0.3s;">
-                            🏨 Hotels (${hotelsCount})
-                        </button>
-                    </div>
-                    
-                    <!-- Content -->
-                    <div id="favoritesContent" style="padding: 30px; min-height: 400px;">
-                        ${renderFavoritesContent('all')}
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(modal);
-            
-            // Close on outside click
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) {
-                    modal.remove();
-                }
-            });
         }
         
-        function switchFavCategory(category) {
-            // Update tab styles
-            document.querySelectorAll('.fav-tab').forEach(tab => {
-                if (tab.dataset.category === category) {
-                    tab.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                    tab.style.color = 'white';
-                } else {
-                    tab.style.background = '#e0e0e0';
-                    tab.style.color = '#333';
-                }
-            });
+        function renderList() {
+            const container = document.getElementById('placesList');
+            let filtered = allItems;
             
-            // Update content
-            document.getElementById('favoritesContent').innerHTML = renderFavoritesContent(category);
-        }
-        
-        function renderFavoritesContent(category) {
-            let items = [];
-            
-            if (category === 'all') {
-                // Combine all items with their category
-                if (userLikedItems.tourism) {
-                    items = items.concat(userLikedItems.tourism.map(item => ({...item, category: 'tourism'})));
-                }
-                if (userLikedItems.restaurants) {
-                    items = items.concat(userLikedItems.restaurants.map(item => ({...item, category: 'restaurants'})));
-                }
-                if (userLikedItems.hotels) {
-                    items = items.concat(userLikedItems.hotels.map(item => ({...item, category: 'hotels'})));
-                }
-            } else {
-                items = (userLikedItems[category] || []).map(item => ({...item, category}));
+            if (currentFilter !== 'all') {
+                filtered = allItems.filter(i => i.placeType === currentFilter);
             }
             
-            if (items.length === 0) {
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="empty"><i class="fas fa-map-marker-alt"></i><p>Nothing found nearby</p></div>';
+                return;
+            }
+            
+            container.innerHTML = filtered.map(item => {
+                const t = TYPES[item.placeType] || TYPES.tourism;
+                const isActivity = item.itemType === 'activity';
+                
                 return `
-                    <div style="text-align: center; padding: 80px 20px; color: #999;">
-                        <div style="font-size: 5rem; margin-bottom: 20px;">😔</div>
-                        <h3 style="font-size: 1.8rem; color: #666; margin-bottom: 10px;">No favorites yet</h3>
-                        <p style="font-size: 1.1rem;">Start exploring and click the heart icon to save your favorites!</p>
+                    <div class="card">
+                        <div class="card-head">
+                            <div class="card-icon" style="background:${t.color}20"><span style="font-size:1.2rem">${t.emoji}</span></div>
+                            <div class="card-info">
+                                <h3>${item.name || item.place_name || t.label}</h3>
+                                <p>${t.label}</p>
+                            </div>
+                            <span class="badge ${isActivity ? 'badge-user' : 'badge-place'}">${isActivity ? '👤 User' : '📍 Place'}</span>
+                        </div>
+                        <div class="card-meta">
+                            ${isActivity ? `
+                                <span><i class="fas fa-users"></i> ${item.participant_count || 1}/${item.max_participants || 5}</span>
+                                <span><i class="fas fa-heart"></i> ${item.mood || 'casual'}</span>
+                            ` : `
+                                <span><i class="fas fa-star"></i> ${item.rating || 'N/A'}</span>
+                            `}
+                            ${item.distance_km ? `<span><i class="fas fa-location-dot"></i> ${item.distance_km} km</span>` : ''}
+                        </div>
+                        ${isActivity && item.clerk_id !== user ? `
+                            <div style="margin-top:8px">
+                                <button class="btn btn-primary btn-sm" onclick="joinAct('${item.activity_id || item.id}')"><i class="fas fa-user-plus"></i> Join</button>
+                            </div>
+                        ` : ''}
                     </div>
                 `;
-            }
-            
-            let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 25px;">';
-            
-            items.forEach(item => {
-                const categoryEmoji = {
-                    'tourism': '🏛️',
-                    'restaurants': '🍽️',
-                    'hotels': '🏨'
-                };
-                
-                const categoryName = {
-                    'tourism': 'Tourism',
-                    'restaurants': 'Restaurant',
-                    'hotels': 'Hotel'
-                };
-                
-                const likedDate = item.liked_at ? new Date(item.liked_at).toLocaleDateString('en-US', { 
-                    year: 'numeric', 
-                    month: 'short', 
-                    day: 'numeric' 
-                }) : 'Recently';
-                
-                html += `
-                    <div style="background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.1); transition: all 0.3s; position: relative;" 
-                         onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 10px 30px rgba(0,0,0,0.2)';"
-                         onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 5px 20px rgba(0,0,0,0.1)';">
-                        
-                        <!-- Unlike Button -->
-                        <button onclick="removeFavorite('${item.item_id}', '${item.category}')" 
-                                style="position: absolute; top: 15px; right: 15px; width: 40px; height: 40px; background: rgba(255, 255, 255, 0.95); border: none; border-radius: 50%; cursor: pointer; font-size: 1.3rem; z-index: 10; transition: all 0.3s; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2);"
-                                onmouseover="this.style.transform='scale(1.1)'; this.style.background='#ff4757'; this.textContent='🗑️';"
-                                onmouseout="this.style.transform='scale(1)'; this.style.background='rgba(255, 255, 255, 0.95)'; this.textContent='❤️';"
-                                title="Remove from favorites">
-                            ❤️
-                        </button>
-                        
-                        <!-- Image -->
-                        <div style="width: 100%; height: 220px; overflow: hidden; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                            <img src="${item.image_url || 'https://via.placeholder.com/400x300?text=No+Image'}" 
-                                 alt="${item.name}" 
-                                 style="width: 100%; height: 100%; object-fit: cover;"
-                                 onerror="this.src='https://via.placeholder.com/400x300?text=No+Image'">
-                        </div>
-                        
-                        <!-- Content -->
-                        <div style="padding: 20px;">
-                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-                                <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 5px 12px; border-radius: 15px; font-size: 0.85rem; font-weight: 600;">
-                                    ${categoryEmoji[item.category]} ${categoryName[item.category]}
-                                </span>
-                            </div>
-                            
-                            <h3 style="font-size: 1.4rem; color: #333; margin-bottom: 10px; font-weight: 800; line-height: 1.3;">
-                                ${item.name}
-                            </h3>
-                            
-                            <div style="display: flex; align-items: center; gap: 8px; color: #666; font-size: 0.9rem; margin-top: 12px;">
-                                <span>📅 Saved ${likedDate}</span>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-            return html;
+            }).join('');
         }
         
-        async function removeFavorite(itemId, category) {
-            if (!confirm('Remove this item from your favorites?')) {
-                return;
+        function renderMarkers() {
+            allMarkers.forEach(m => map.removeLayer(m));
+            allMarkers = [];
+            
+            let filtered = allItems;
+            if (currentFilter !== 'all') {
+                filtered = allItems.filter(i => i.placeType === currentFilter);
             }
             
-            try {
-                const response = await fetch(
-                    `${API_BASE}/api/users/${currentUser.clerk_id}/likes/${category}/${itemId}`,
-                    { method: 'DELETE' }
-                );
+            filtered.forEach(item => {
+                if (!item.lat || !item.lon) return;
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    userLikedItems = data.liked;
-                    
-                    // Reload user data to update the favorites count
-                    await loadUserData();
-                    
-                    // Close and reopen favorites to show updated list
-                    document.querySelector('div[style*="position: fixed"]')?.remove();
-                    showMyFavorites();
-                } else {
-                    alert('❌ Failed to remove item');
-                }
-            } catch (error) {
-                console.error('Error removing favorite:', error);
-                alert('❌ Error: ' + error.message);
+                const t = TYPES[item.placeType] || TYPES.tourism;
+                const isActivity = item.itemType === 'activity';
+                
+                const marker = L.marker([item.lat, item.lon], {
+                    icon: L.divIcon({
+                        html: `<div style="background:${isActivity ? '#4CAF50' : t.color};width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-size:14px;">${isActivity ? '👤' : t.emoji}</div>`,
+                        iconSize: [32, 32],
+                        className: ''
+                    })
+                }).addTo(map);
+                
+                const popupContent = `
+                    <div style="min-width:150px">
+                        <h4 style="margin:0 0 5px;font-size:13px;color:${t.color}">${item.name || item.place_name || t.label}</h4>
+                        <p style="margin:2px 0;font-size:11px;color:#666">${t.label} ${isActivity ? '• User Activity' : '• Place'}</p>
+                        ${isActivity ? `
+                            <p style="margin:2px 0;font-size:11px"><i class="fas fa-users"></i> ${item.participant_count || 1}/${item.max_participants || 5}</p>
+                            <p style="margin:2px 0;font-size:11px"><i class="fas fa-heart"></i> ${item.mood || 'casual'}</p>
+                            ${item.clerk_id !== user ? `<button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="joinAct('${item.activity_id || item.id}')">Join</button>` : ''}
+                        ` : `
+                            <p style="margin:2px 0;font-size:11px"><i class="fas fa-star"></i> ${item.rating || 'N/A'}</p>
+                        `}
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                allMarkers.push(marker);
+            });
+            
+            // Fit bounds
+            if (allMarkers.length > 0) {
+                const group = new L.featureGroup([userMarker, ...allMarkers]);
+                map.fitBounds(group.getBounds().pad(0.1));
             }
         }
-
-        function clearResults() {
-            document.getElementById('statsContainer').innerHTML = '';
-            document.getElementById('loadingContainer').innerHTML = '';
-            document.getElementById('resultsContainer').innerHTML = '';
+        
+        // Activity functions
+        async function createActivity() {
+            if (!selType) { toast('Select activity type'); return; }
+            
+            try {
+                const res = await fetch(`${API}/activities?clerk_id=${user}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        activity_type: selType,
+                        lat: loc.lat,
+                        lon: loc.lon,
+                        place_name: document.getElementById('placeName').value,
+                        mood: selMood,
+                        max_participants: parseInt(document.getElementById('maxPart').value),
+                        is_public: true
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    toast('Activity created!');
+                    closeModal('createModal');
+                    resetForm();
+                    loadAll();
+                } else toast(data.detail || 'Error');
+            } catch (e) { toast('Error creating'); }
         }
+        
+        async function joinAct(id) {
+            try {
+                const res = await fetch(`${API}/activities/${id}/join?clerk_id=${user}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) { toast('Joined!'); loadAll(); }
+                else toast(data.detail || 'Cannot join');
+            } catch (e) { toast('Error'); }
+        }
+        
+        async function loadMyActs() {
+            const container = document.getElementById('myActivities');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            try {
+                const res = await fetch(`${API}/activities/user/${user}`);
+                const data = await res.json();
+                if (data.activities?.length > 0) {
+                    container.innerHTML = data.activities.map(a => {
+                        const t = TYPES[a.activity_type] || TYPES.cafe;
+                        return `
+                            <div class="card">
+                                <div class="card-head">
+                                    <div class="card-icon" style="background:${t.color}20"><span style="font-size:1.2rem">${t.emoji}</span></div>
+                                    <div class="card-info">
+                                        <h3>${a.place_name || t.label}</h3>
+                                        <p>${t.label}</p>
+                                    </div>
+                                    <span class="badge" style="background:#d1fae5;color:#065f46">${a.status || 'active'}</span>
+                                </div>
+                                <div class="card-meta">
+                                    <span><i class="fas fa-users"></i> ${a.participant_count || 1}/${a.max_participants || 5}</span>
+                                    <span><i class="fas fa-heart"></i> ${a.mood || 'casual'}</span>
+                                </div>
+                                <div style="margin-top:8px">
+                                    <button class="btn btn-danger btn-sm" onclick="cancelAct('${a.activity_id || a.id}')"><i class="fas fa-times"></i> Cancel</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    container.innerHTML = '<div class="empty"><i class="fas fa-calendar-plus"></i><p>No activities yet</p></div>';
+                }
+            } catch (e) {
+                container.innerHTML = '<div class="empty"><i class="fas fa-exclamation-circle"></i><p>Error</p></div>';
+            }
+        }
+        
+        async function cancelAct(id) {
+            if (!confirm('Cancel this activity?')) return;
+            try {
+                await fetch(`${API}/activities/${id}?clerk_id=${user}`, { method: 'DELETE' });
+                toast('Cancelled');
+                loadMyActs();
+                loadAll();
+            } catch (e) { toast('Error'); }
+        }
+        
+        // Connections
+        async function loadConns() {
+            try {
+                // Pending
+                const pRes = await fetch(`${API}/connections/pending?clerk_id=${user}`);
+                const pData = await pRes.json();
+                document.getElementById('pendingReqs').innerHTML = pData.pending_requests?.length > 0
+                    ? pData.pending_requests.map(c => connCard(c, true)).join('')
+                    : '<div class="card"><p style="color:var(--gray);text-align:center;font-size:0.8rem">No pending</p></div>';
+                
+                // Active
+                const aRes = await fetch(`${API}/connections?clerk_id=${user}&status=accepted`);
+                const aData = await aRes.json();
+                document.getElementById('activeChats').innerHTML = aData.connections?.length > 0
+                    ? aData.connections.map(c => connCard(c, false)).join('')
+                    : '<div class="card"><p style="color:var(--gray);text-align:center;font-size:0.8rem">No chats</p></div>';
+            } catch (e) { console.error(e); }
+        }
+        
+        function connCard(c, pending) {
+            const other = c.from_clerk_id === user ? c.to_clerk_id : c.from_clerk_id;
+            const init = other.substring(0, 2).toUpperCase();
+            return `
+                <div class="card">
+                    <div class="conn-row">
+                        <div class="conn-avatar">${init}</div>
+                        <div class="conn-info"><h4>${other}</h4><p>Activity</p></div>
+                        ${pending ? `
+                            <button class="btn btn-success btn-sm" onclick="respond('${c.connection_id}',true)"><i class="fas fa-check"></i></button>
+                            <button class="btn btn-danger btn-sm" onclick="respond('${c.connection_id}',false)"><i class="fas fa-times"></i></button>
+                        ` : `
+                            <button class="btn btn-primary btn-sm" onclick="openChat('${c.connection_id}','${other}')"><i class="fas fa-comment"></i></button>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function respond(id, accept) {
+            try {
+                await fetch(`${API}/connections/${id}/respond?clerk_id=${user}&accept=${accept}`, { method: 'POST' });
+                toast(accept ? 'Accepted!' : 'Declined');
+                loadConns();
+            } catch (e) { toast('Error'); }
+        }
+        
+        function openChat(id, name) {
+            curConn = id;
+            document.getElementById('chatWith').textContent = 'Chat: ' + name;
+            document.getElementById('chatMsgs').innerHTML = '<p style="text-align:center;color:var(--gray);font-size:0.8rem">Start chatting!</p>';
+            openModal('chatModal');
+            loadChatMsgs(id);
+        }
+        
+        async function loadChatMsgs(id) {
+            try {
+                const res = await fetch(`${API}/connections?clerk_id=${user}`);
+                const data = await res.json();
+                const c = data.connections?.find(x => x.connection_id === id);
+                if (c?.messages?.length > 0) {
+                    const box = document.getElementById('chatMsgs');
+                    box.innerHTML = c.messages.map(m => 
+                        `<div class="chat-msg ${m.sender_id === user ? 'sent' : 'received'}"><div class="chat-bubble">${m.message}</div></div>`
+                    ).join('');
+                    box.scrollTop = box.scrollHeight;
+                }
+            } catch (e) {}
+        }
+        
+        async function sendMsg() {
+            const input = document.getElementById('msgInput');
+            const msg = input.value.trim();
+            if (!msg || !curConn) return;
+            
+            try {
+                const res = await fetch(`${API}/connections/${curConn}/message?clerk_id=${user}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg })
+                });
+                if (res.ok) {
+                    input.value = '';
+                    const box = document.getElementById('chatMsgs');
+                    if (box.querySelector('p')) box.innerHTML = '';
+                    box.innerHTML += `<div class="chat-msg sent"><div class="chat-bubble">${msg}</div></div>`;
+                    box.scrollTop = box.scrollHeight;
+                }
+            } catch (e) { toast('Error'); }
+        }
+        
+        // Helpers
+        function openModal(id) { document.getElementById(id).classList.add('show'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+        function openCreate() { resetForm(); openModal('createModal'); }
+        
+        function resetForm() {
+            selType = null;
+            selMood = 'casual';
+            document.querySelectorAll('.act-item').forEach(e => e.classList.remove('selected'));
+            document.querySelectorAll('.mood-btn').forEach(e => e.classList.toggle('selected', e.textContent === 'casual'));
+            document.getElementById('placeName').value = '';
+            document.getElementById('maxPart').value = 5;
+            document.getElementById('maxVal').textContent = '5';
+        }
+        
+        function toast(msg) {
+            const old = document.querySelector('.toast');
+            if (old) old.remove();
+            const t = document.createElement('div');
+            t.className = 'toast';
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 2500);
+        }
+        
+        // Enter to send
+        document.addEventListener('keypress', e => {
+            if (e.key === 'Enter' && document.getElementById('chatModal').classList.contains('show')) sendMsg();
+        });
     </script>
 </body>
 </html>

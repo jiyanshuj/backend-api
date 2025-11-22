@@ -1,14 +1,16 @@
 """
-WanderEase Backend - Main API Server
-FastAPI application with auto user creation on first interaction
+WanderEase Backend - Main API Server v3.0
+With Activity Matching & Social Discovery
 """
 
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from typing import Optional
-from pydantic import BaseModel, EmailStr
+from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
 import uvicorn
+from contextlib import asynccontextmanager
 
 from db import init_db, close_db
 from tourism import get_tourism_places
@@ -20,10 +22,17 @@ from users import (
     add_liked_item, remove_liked_item, get_user_liked_items,
     is_item_liked, get_user_stats, delete_user
 )
+from activities import (
+    ACTIVITY_TYPES, MOOD_TYPES,
+    create_activity, get_activity_by_id, get_user_activities,
+    update_activity, cancel_activity, find_nearby_activities,
+    find_matching_activities, join_activity, leave_activity,
+    get_user_connections, get_pending_requests, respond_to_connection,
+    send_message, cleanup_expired_activities, get_activity_participants
+)
 
-from contextlib import asynccontextmanager
+# ============= PYDANTIC MODELS =============
 
-# Pydantic models for user requests
 class UserCreate(BaseModel):
     clerk_id: str
     name: str
@@ -41,29 +50,47 @@ class LikedItem(BaseModel):
     image_url: Optional[str] = None
     type: Optional[str] = None
 
+class ActivityCreate(BaseModel):
+    activity_type: str = Field(..., description="Type: cafe, garden, restaurant, mall, library, movie, gym, event, coworking")
+    lat: float
+    lon: float
+    place_name: Optional[str] = None
+    scheduled_time: Optional[datetime] = None
+    mood: Optional[str] = Field(None, description="Mood: chill, social, study, adventure, networking, casual")
+    description: Optional[str] = Field(None, max_length=500)
+    max_participants: int = Field(5, ge=2, le=20)
+    is_public: bool = True
+
+class ActivityUpdate(BaseModel):
+    place_name: Optional[str] = None
+    scheduled_time: Optional[datetime] = None
+    mood: Optional[str] = None
+    description: Optional[str] = None
+    max_participants: Optional[int] = None
+    is_public: Optional[bool] = None
+
+class MessageCreate(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1000)
+
+# ============= APP SETUP =============
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan event handler for startup and shutdown"""
-    # Startup
-    print("🚀 Starting WanderEase API Server...")
-    print("📸 Google Custom Search API: ENABLED")
-    print("🔑 API Key Status: Active")
-    print("👤 User Management: ENABLED (Auto-create on first like)")
+    print("🚀 Starting WanderEase API Server v3.0...")
+    print("🎯 Activity Matching: ENABLED")
+    print("💬 Social Connections: ENABLED")
     init_db()
     yield
-    # Shutdown
     print("👋 Shutting down WanderEase API Server...")
     close_db()
 
-# Initialize FastAPI app
 app = FastAPI(
     title="WanderEase API",
-    version="2.2.0",
-    description="Tourism API with real images and auto user management",
+    version="3.0.0",
+    description="Tourism API with Activity Matching & Social Discovery",
     lifespan=lifespan
 )
 
-# CORS middleware - Allow all origins for development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -74,503 +101,417 @@ app.add_middleware(
 )
 
 def ensure_user_exists(clerk_id: str, name: Optional[str] = None, email: Optional[str] = None) -> dict:
-    """
-    Ensure user exists, create if not
-    Returns user document
-    """
     user = get_user_by_clerk_id(clerk_id)
-    
     if not user:
-        # Auto-create user with defaults
         print(f"🆕 Auto-creating user: {clerk_id}")
-        
-        # Use clerk_id as email if email not provided
         if not email:
-            if '@' in clerk_id:
-                email = clerk_id
-            else:
-                email = f"{clerk_id}@wander-ease.app"
-        
-        # Use clerk_id as name if name not provided
+            email = clerk_id if '@' in clerk_id else f"{clerk_id}@wander-ease.app"
         if not name:
             name = clerk_id.split('@')[0] if '@' in clerk_id else clerk_id
-        
         try:
-            user = create_user(
-                clerk_id=clerk_id,
-                name=name,
-                email=email,
-                phone=None
-            )
+            user = create_user(clerk_id=clerk_id, name=name, email=email, phone=None)
             print(f"✅ Auto-created user: {clerk_id}")
-        except ValueError as e:
-            # User might have been created by another request
-            print(f"⚠️ Error auto-creating user (might exist): {e}")
+        except ValueError:
             user = get_user_by_clerk_id(clerk_id)
             if not user:
                 raise
-    
     return user
 
 @app.get("/")
 async def root():
-    """API root endpoint"""
     return {
         "message": "WanderEase API",
-        "version": "2.2.0",
+        "version": "3.0.0",
         "features": {
             "google_images": "enabled",
-            "real_time_search": "enabled",
-            "mongodb_caching": "enabled",
-            "user_management": "enabled",
-            "auto_user_creation": "enabled"
+            "activity_matching": "enabled",
+            "social_discovery": "enabled",
+            "real_time_chat": "enabled"
         },
         "endpoints": {
             "tourism": "/api/tourism",
             "restaurants": "/api/restaurants",
             "hotels": "/api/hotels",
             "map": "/api/map",
-            "map_html": "/api/map/html",
-            "users": "/api/users",
-            "health": "/health"
+            "activities": "/api/activities",
+            "connections": "/api/connections",
+            "users": "/api/users"
         },
         "documentation": "/docs"
     }
 
-# ============= EXISTING ENDPOINTS (UNCHANGED) =============
+# ============= TOURISM ENDPOINTS =============
 
 @app.get("/api/tourism")
 async def search_tourism(
-    location: str = Query(..., description="Location to search (city, area, country)"),
-    limit: int = Query(20, ge=1, le=50, description="Maximum results to return")
+    location: str = Query(...),
+    limit: int = Query(20, ge=1, le=50)
 ):
-    """Search tourism places by location with real Google images"""
     try:
-        print(f"\n🏛️ Searching tourism places for: {location}")
         places = await get_tourism_places(location, limit)
-        
-        return {
-            "success": True,
-            "location": location,
-            "count": len(places),
-            "data": places,
-            "image_source": "Google Custom Search API"
-        }
+        return {"success": True, "location": location, "count": len(places), "data": places}
     except Exception as e:
-        print(f"❌ Tourism search error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/restaurants")
 async def search_restaurants(
-    location: str = Query(..., description="Location to search"),
-    limit: int = Query(20, ge=1, le=50, description="Maximum results to return")
+    location: str = Query(...),
+    limit: int = Query(20, ge=1, le=50)
 ):
-    """Search restaurants by location with real Google images"""
     try:
-        print(f"\n🍽️ Searching restaurants for: {location}")
         restaurants = await get_restaurants(location, limit)
-        
-        return {
-            "success": True,
-            "location": location,
-            "count": len(restaurants),
-            "data": restaurants,
-            "image_source": "Google Custom Search API"
-        }
+        return {"success": True, "location": location, "count": len(restaurants), "data": restaurants}
     except Exception as e:
-        print(f"❌ Restaurant search error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/hotels")
 async def search_hotels(
-    location: str = Query(..., description="Location to search"),
-    limit: int = Query(20, ge=1, le=50, description="Maximum results to return")
+    location: str = Query(...),
+    limit: int = Query(20, ge=1, le=50)
 ):
-    """Search hotels by location with real Google images"""
     try:
-        print(f"\n🏨 Searching hotels for: {location}")
         hotels = await get_hotels(location, limit)
-        
-        return {
-            "success": True,
-            "location": location,
-            "count": len(hotels),
-            "data": hotels,
-            "image_source": "Google Custom Search API"
-        }
+        return {"success": True, "location": location, "count": len(hotels), "data": hotels}
     except Exception as e:
-        print(f"❌ Hotel search error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ============= MAP ENDPOINTS =============
 
 @app.get("/api/map")
 async def get_map(
-    location: str = Query(..., description="Location for map center"),
-    markers: Optional[str] = Query(None, description="Comma-separated lat,lon pairs"),
-    show_nearby: Optional[str] = Query(None, description="Show nearby places: tourism, restaurant, hotel, cafe"),
-    nearby_radius: int = Query(1000, ge=100, le=5000, description="Search radius in meters"),
-    nearby_limit: int = Query(20, ge=1, le=50, description="Maximum nearby places to show")
+    location: str = Query(...),
+    markers: Optional[str] = Query(None),
+    show_nearby: Optional[str] = Query(None),
+    nearby_radius: int = Query(1000, ge=100, le=5000),
+    nearby_limit: int = Query(20, ge=1, le=50)
 ):
-    """Generate interactive OpenStreetMap with markers and nearby places"""
     try:
-        print(f"\n🗺️ Generating map for: {location}")
         map_data = await generate_map_image(
-            location=location,
-            markers=markers,
-            show_nearby=show_nearby,
-            nearby_radius=nearby_radius,
-            nearby_limit=nearby_limit
+            location=location, markers=markers, show_nearby=show_nearby,
+            nearby_radius=nearby_radius, nearby_limit=nearby_limit
         )
-        return {
-            "success": True,
-            "location": location,
-            "map_html": map_data["map_html"],
-            "center": map_data["center"],
-            "markers": map_data.get("markers", []),
-            "nearby_count": map_data.get("nearby_count", 0)
-        }
+        return {"success": True, "location": location, **map_data}
     except Exception as e:
-        import traceback
-        print(f"❌ Map error: {str(e)}")
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/map/html", response_class=HTMLResponse)
 async def get_map_html(
-    location: str = Query(..., description="Location for map center"),
-    markers: Optional[str] = Query(None, description="Comma-separated lat,lon pairs"),
-    show_nearby: Optional[str] = Query(None, description="Show nearby places: tourism, restaurant, hotel, cafe"),
-    nearby_radius: int = Query(1000, ge=100, le=5000, description="Search radius in meters"),
-    nearby_limit: int = Query(20, ge=1, le=50, description="Maximum nearby places to show")
+    location: str = Query(...),
+    markers: Optional[str] = Query(None),
+    show_nearby: Optional[str] = Query(None),
+    nearby_radius: int = Query(1000),
+    nearby_limit: int = Query(20)
 ):
-    """Generate interactive OpenStreetMap - returns HTML directly for embedding"""
     try:
         map_data = await generate_map_image(
-            location=location,
-            markers=markers,
-            show_nearby=show_nearby,
-            nearby_radius=nearby_radius,
-            nearby_limit=nearby_limit
+            location=location, markers=markers, show_nearby=show_nearby,
+            nearby_radius=nearby_radius, nearby_limit=nearby_limit
         )
         return map_data["map_html"]
     except Exception as e:
-        import traceback
-        print(f"❌ Map HTML error: {str(e)}")
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-# ============= USER ENDPOINTS WITH AUTO-CREATE =============
+# ============= USER ENDPOINTS =============
 
 @app.post("/api/users")
 async def register_user(user: UserCreate):
-    """
-    Register a new user
-    
-    Required fields:
-    - clerk_id: Unique Clerk authentication ID
-    - name: User's full name
-    - email: User's email address
-    - phone: User's phone number (optional)
-    """
     try:
-        new_user = create_user(
-            clerk_id=user.clerk_id,
-            name=user.name,
-            email=user.email,
-            phone=user.phone
-        )
-        return {
-            "success": True,
-            "message": "User registered successfully",
-            "user": new_user
-        }
+        new_user = create_user(clerk_id=user.clerk_id, name=user.name, email=user.email, phone=user.phone)
+        return {"success": True, "message": "User registered", "user": new_user}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        print(f"❌ User registration error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/users/{clerk_id}")
 async def get_user(clerk_id: str):
-    """Get user profile by Clerk ID (auto-creates if doesn't exist)"""
     try:
-        # Auto-create user if doesn't exist
         user = ensure_user_exists(clerk_id)
-        
-        return {
-            "success": True,
-            "user": user
-        }
+        return {"success": True, "user": user}
     except Exception as e:
-        print(f"❌ Get user error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/users/{clerk_id}")
 async def update_user_profile(clerk_id: str, updates: UserUpdate):
-    """
-    Update user profile
-    
-    Optional fields to update:
-    - name
-    - email
-    - phone
-    """
     try:
-        # Ensure user exists first
         ensure_user_exists(clerk_id)
-        
         update_data = updates.dict(exclude_unset=True)
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields to update")
-        
-        updated_user = update_user(clerk_id, **update_data)
-        if not updated_user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return {
-            "success": True,
-            "message": "User updated successfully",
-            "user": updated_user
-        }
+        updated = update_user(clerk_id, **update_data)
+        return {"success": True, "user": updated}
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Update user error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/users/{clerk_id}")
 async def delete_user_account(clerk_id: str):
-    """Delete user account"""
     try:
-        deleted = delete_user(clerk_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return {
-            "success": True,
-            "message": "User deleted successfully"
-        }
+        if delete_user(clerk_id):
+            return {"success": True, "message": "User deleted"}
+        raise HTTPException(status_code=404, detail="User not found")
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Delete user error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/users/{clerk_id}/likes/{category}")
-async def like_item(
-    clerk_id: str,
-    category: str,
-    item: LikedItem = Body(...)
-):
-    """
-    Add an item to user's liked list
-    Auto-creates user if doesn't exist
-    
-    Categories: tourism, restaurants, hotels
-    
-    Required in request body:
-    - item_id: ID of the item
-    - name: Name of the item
-    - image_url: Image URL (optional)
-    - type: Type of item (optional)
-    """
+async def like_item(clerk_id: str, category: str, item: LikedItem = Body(...)):
     try:
         if category not in ["tourism", "restaurants", "hotels"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid category. Must be tourism, restaurants, or hotels"
-            )
-        
-        # Auto-create user if doesn't exist
-        print(f"👤 Ensuring user exists: {clerk_id}")
+            raise HTTPException(status_code=400, detail="Invalid category")
         ensure_user_exists(clerk_id)
-        
-        # Add liked item
-        updated_user = add_liked_item(
-            clerk_id=clerk_id,
-            category=category,
-            item_id=item.item_id,
-            item_data=item.dict()
-        )
-        
-        if not updated_user:
-            raise HTTPException(status_code=500, detail="Failed to add liked item")
-        
-        return {
-            "success": True,
-            "message": f"Item added to {category} likes",
-            "liked": updated_user.get("liked", {})
-        }
+        updated = add_liked_item(clerk_id, category, item.item_id, item.dict())
+        return {"success": True, "liked": updated.get("liked", {})}
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Like item error: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/users/{clerk_id}/likes/{category}/{item_id}")
 async def unlike_item(clerk_id: str, category: str, item_id: str):
-    """
-    Remove an item from user's liked list
-    
-    Categories: tourism, restaurants, hotels
-    """
     try:
         if category not in ["tourism", "restaurants", "hotels"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid category. Must be tourism, restaurants, or hotels"
-            )
-        
-        updated_user = remove_liked_item(clerk_id, category, item_id)
-        if not updated_user:
+            raise HTTPException(status_code=400, detail="Invalid category")
+        updated = remove_liked_item(clerk_id, category, item_id)
+        if not updated:
             raise HTTPException(status_code=404, detail="User not found")
-        
-        return {
-            "success": True,
-            "message": f"Item removed from {category} likes",
-            "liked": updated_user.get("liked", {})
-        }
+        return {"success": True, "liked": updated.get("liked", {})}
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Unlike item error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/users/{clerk_id}/likes")
-async def get_liked_items(
-    clerk_id: str,
-    category: Optional[str] = Query(None, description="Filter by category: tourism, restaurants, hotels")
-):
-    """
-    Get all liked items for a user
-    Auto-creates user if doesn't exist
-    
-    Optional query parameter:
-    - category: Filter by specific category (tourism, restaurants, hotels)
-    """
+async def get_liked_items(clerk_id: str, category: Optional[str] = Query(None)):
     try:
-        # Auto-create user if doesn't exist
         ensure_user_exists(clerk_id)
-        
-        liked_items = get_user_liked_items(clerk_id, category)
-        if liked_items is None:
-            # This shouldn't happen after ensure_user_exists, but just in case
-            return {
-                "success": True,
-                "clerk_id": clerk_id,
-                "liked": {"tourism": [], "restaurants": [], "hotels": []}
-            }
-        
-        return {
-            "success": True,
-            "clerk_id": clerk_id,
-            "liked": liked_items
-        }
-    except HTTPException:
-        raise
+        liked = get_user_liked_items(clerk_id, category)
+        return {"success": True, "liked": liked or {"tourism": [], "restaurants": [], "hotels": []}}
     except Exception as e:
-        print(f"❌ Get liked items error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/users/{clerk_id}/likes/{category}/{item_id}/check")
 async def check_if_liked(clerk_id: str, category: str, item_id: str):
-    """
-    Check if a specific item is liked by the user
-    
-    Categories: tourism, restaurants, hotels
-    """
     try:
         if category not in ["tourism", "restaurants", "hotels"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid category. Must be tourism, restaurants, or hotels"
-            )
-        
-        # Check if user exists first
+            raise HTTPException(status_code=400, detail="Invalid category")
         user = get_user_by_clerk_id(clerk_id)
-        if not user:
-            # User doesn't exist, so item is not liked
-            return {
-                "success": True,
-                "clerk_id": clerk_id,
-                "category": category,
-                "item_id": item_id,
-                "is_liked": False
-            }
-        
-        is_liked = is_item_liked(clerk_id, category, item_id)
-        
-        return {
-            "success": True,
-            "clerk_id": clerk_id,
-            "category": category,
-            "item_id": item_id,
-            "is_liked": is_liked
-        }
-    except HTTPException:
-        raise
+        is_liked = is_item_liked(clerk_id, category, item_id) if user else False
+        return {"success": True, "is_liked": is_liked}
     except Exception as e:
-        print(f"❌ Check liked error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/users/{clerk_id}/stats")
 async def get_user_statistics(clerk_id: str):
-    """Get user statistics (auto-creates user if doesn't exist)"""
     try:
-        # Auto-create user if doesn't exist
         ensure_user_exists(clerk_id)
-        
         stats = get_user_stats(clerk_id)
-        if not stats:
-            raise HTTPException(status_code=500, detail="Failed to get user stats")
-        
+        return {"success": True, "stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============= ACTIVITY ENDPOINTS =============
+
+@app.get("/api/activities/types")
+async def get_activity_types():
+    """Get all available activity types and moods"""
+    return {"success": True, "activity_types": ACTIVITY_TYPES, "mood_types": MOOD_TYPES}
+
+@app.post("/api/activities")
+async def create_new_activity(clerk_id: str = Query(...), activity: ActivityCreate = Body(...)):
+    """Create a new activity - auto-creates user if needed"""
+    try:
+        ensure_user_exists(clerk_id)
+        new_activity = create_activity(
+            clerk_id=clerk_id,
+            activity_type=activity.activity_type,
+            lat=activity.lat,
+            lon=activity.lon,
+            place_name=activity.place_name,
+            scheduled_time=activity.scheduled_time,
+            mood=activity.mood,
+            description=activity.description,
+            max_participants=activity.max_participants,
+            is_public=activity.is_public
+        )
+        return {"success": True, "message": "Activity created", "activity": new_activity}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/activities/nearby")
+async def search_nearby_activities(
+    lat: float = Query(..., description="User latitude"),
+    lon: float = Query(..., description="User longitude"),
+    activity_type: Optional[str] = Query(None, description="Filter by type"),
+    radius_km: float = Query(5.0, ge=0.5, le=50),
+    mood: Optional[str] = Query(None),
+    clerk_id: Optional[str] = Query(None, description="Exclude own activities"),
+    limit: int = Query(20, ge=1, le=50)
+):
+    """Find nearby activities - main discovery endpoint"""
+    try:
+        activities = find_nearby_activities(
+            lat=lat, lon=lon, activity_type=activity_type,
+            radius_km=radius_km, mood=mood,
+            exclude_clerk_id=clerk_id, limit=limit
+        )
         return {
             "success": True,
-            "stats": stats
+            "search_center": {"lat": lat, "lon": lon},
+            "radius_km": radius_km,
+            "count": len(activities),
+            "activities": activities
         }
-    except HTTPException:
-        raise
     except Exception as e:
-        print(f"❌ Get stats error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/activities/match")
+async def find_activity_matches(
+    clerk_id: str = Query(...),
+    lat: float = Query(...),
+    lon: float = Query(...),
+    activity_type: str = Query(..., description="What you're planning to do"),
+    radius_km: float = Query(3.0, ge=0.5, le=20),
+    time_window_hours: int = Query(2, ge=1, le=8)
+):
+    """Find people doing the same activity nearby right now"""
+    try:
+        matches = find_matching_activities(
+            clerk_id=clerk_id, lat=lat, lon=lon,
+            activity_type=activity_type, radius_km=radius_km,
+            time_window_hours=time_window_hours
+        )
+        return {
+            "success": True,
+            "your_activity": activity_type,
+            "your_location": {"lat": lat, "lon": lon},
+            "matches_found": len(matches),
+            "matches": matches
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/activities/user/{clerk_id}")
+async def get_activities_by_user(clerk_id: str, status: Optional[str] = Query(None)):
+    """Get all activities created by a user"""
+    activities = get_user_activities(clerk_id, status)
+    return {"success": True, "count": len(activities), "activities": activities}
+
+@app.get("/api/activities/{activity_id}")
+async def get_activity(activity_id: str):
+    """Get activity details by ID"""
+    activity = get_activity_by_id(activity_id)
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    return {"success": True, "activity": activity}
+
+@app.get("/api/activities/{activity_id}/participants")
+async def get_participants(activity_id: str):
+    """Get participants of an activity"""
+    try:
+        participants = get_activity_participants(activity_id)
+        return {"success": True, "participants": participants}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.put("/api/activities/{activity_id}")
+async def update_activity_endpoint(activity_id: str, clerk_id: str = Query(...), updates: ActivityUpdate = Body(...)):
+    """Update an activity (only by creator)"""
+    try:
+        updated = update_activity(activity_id, clerk_id, **updates.dict(exclude_unset=True))
+        if not updated:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        return {"success": True, "activity": updated}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/activities/{activity_id}")
+async def cancel_activity_endpoint(activity_id: str, clerk_id: str = Query(...)):
+    """Cancel an activity (only by creator)"""
+    if cancel_activity(activity_id, clerk_id):
+        return {"success": True, "message": "Activity cancelled"}
+    raise HTTPException(status_code=403, detail="Not authorized")
+
+@app.post("/api/activities/{activity_id}/join")
+async def join_activity_endpoint(activity_id: str, clerk_id: str = Query(...)):
+    """Join an activity"""
+    try:
+        ensure_user_exists(clerk_id)
+        updated = join_activity(activity_id, clerk_id)
+        return {"success": True, "message": "Joined activity", "activity": updated}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/api/activities/{activity_id}/leave")
+async def leave_activity_endpoint(activity_id: str, clerk_id: str = Query(...)):
+    """Leave an activity"""
+    try:
+        if leave_activity(activity_id, clerk_id):
+            return {"success": True, "message": "Left activity"}
+        raise HTTPException(status_code=400, detail="Not in activity")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# ============= CONNECTION ENDPOINTS =============
+
+@app.get("/api/connections")
+async def get_all_connections(clerk_id: str = Query(...), status: Optional[str] = Query(None)):
+    """Get all connections for a user"""
+    connections = get_user_connections(clerk_id, status)
+    return {"success": True, "count": len(connections), "connections": connections}
+
+@app.get("/api/connections/pending")
+async def get_pending_connection_requests(clerk_id: str = Query(...)):
+    """Get pending connection requests"""
+    requests = get_pending_requests(clerk_id)
+    return {"success": True, "count": len(requests), "pending_requests": requests}
+
+@app.post("/api/connections/{connection_id}/respond")
+async def respond_to_connection_request(connection_id: str, clerk_id: str = Query(...), accept: bool = Query(...)):
+    """Accept or decline a connection request"""
+    result = respond_to_connection(connection_id, clerk_id, accept)
+    if not result:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    action = "accepted" if accept else "declined"
+    return {"success": True, "message": f"Connection {action}", "connection": result}
+
+@app.post("/api/connections/{connection_id}/message")
+async def send_chat_message(connection_id: str, clerk_id: str = Query(...), msg: MessageCreate = Body(...)):
+    """Send a message in a connection chat"""
+    try:
+        result = send_message(connection_id, clerk_id, msg.message)
+        if not result:
+            raise HTTPException(status_code=404, detail="Connection not found")
+        return {"success": True, "connection": result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# ============= ADMIN ENDPOINTS =============
+
+@app.post("/api/admin/cleanup")
+async def cleanup_expired():
+    """Cleanup expired activities"""
+    count = cleanup_expired_activities()
+    return {"success": True, "cleaned_up": count}
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint with API status"""
     return {
         "status": "healthy",
-        "version": "2.2.0",
-        "features": {
-            "google_images": "enabled",
-            "database": "connected",
-            "user_management": "enabled",
-            "auto_user_creation": "enabled"
-        }
+        "version": "3.0.0",
+        "features": ["tourism", "restaurants", "hotels", "activities", "connections", "chat"]
     }
 
 if __name__ == "__main__":
     print("\n" + "="*60)
-    print("🚀 WanderEase API Server Starting...")
+    print("🚀 WanderEase API Server v3.0")
     print("="*60)
-    print("\n📸 Image Features:")
-    print("   ✅ Google Custom Search API: ENABLED")
-    print("   ✅ Real-time image fetching: ACTIVE")
-    print("   ✅ Fallback to Wikimedia: ENABLED")
-    print("\n👤 User Management:")
-    print("   ✅ User Registration & Authentication")
-    print("   ✅ AUTO USER CREATION (on first like)")
-    print("   ✅ Liked Items (Tourism, Restaurants, Hotels)")
-    print("   ✅ User Profile Management")
-    print("\n📍 Quick Links:")
-    print("   • API Docs: http://127.0.0.1:8000/docs")
-    print("   • Health Check: http://127.0.0.1:8000/health")
-    print("\n👤 User Endpoints:")
-    print("   • Register User: POST /api/users (optional - auto-created)")
-    print("   • Get User: GET /api/users/{clerk_id}")
-    print("   • Like Item: POST /api/users/{clerk_id}/likes/{category}")
-    print("   • Get Likes: GET /api/users/{clerk_id}/likes")
-    print("\n💡 Note: Users are automatically created on first interaction!")
-    print("\n" + "="*60 + "\n")
-    
+    print("\n🎯 Activity Matching Features:")
+    print("   • Create & discover activities")
+    print("   • Location-based matching")
+    print("   • Social connections & chat")
+    print("\n📍 API Docs: http://127.0.0.1:8000/docs")
+    print("="*60 + "\n")
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
